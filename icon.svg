@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">项目费用汇总工具</title>
+  <rect width="512" height="512" rx="112" fill="#176b5b"/>
+  <rect x="96" y="78" width="320" height="356" rx="48" fill="#f3f7f5"/>
+  <rect x="138" y="128" width="236" height="62" rx="18" fill="#d8ebe5"/>
+  <path d="M161 254h54m41 0h94M161 315h54m41 0h94M161 376h54m41 0h94" fill="none" stroke="#176b5b" stroke-linecap="round" stroke-width="24"/>
+  <circle cx="188" cy="159" r="17" fill="#176b5b"/>
+</svg>

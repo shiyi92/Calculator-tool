@@ -1,0 +1,21 @@
+{
+  "name": "项目费用汇总工具",
+  "short_name": "项目汇总",
+  "description": "合同、付款及项目费用录入和自动汇总工具",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f7f5",
+  "theme_color": "#176b5b",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
