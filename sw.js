@@ -1,6 +1,6 @@
 'use strict'
 
-const CACHE_NAME = 'project-ledger-v8'
+const CACHE_NAME = 'project-ledger-v9'
 const APP_ASSETS = [
   './',
   './index.html',

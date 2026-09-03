@@ -154,7 +154,7 @@ h2 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -1287,5 +1287,68 @@ body:has(dialog[open]) {
   .cost-dialog,
   .detail-dialog {
     display: none !important;
+  }
+}
+
+/* 结款汇总与明细 */
+.summary-settled {
+  border-color: #9fd2bf;
+  background: #edf9f5;
+}
+
+.summary-unsettled {
+  border-color: #ecd6ad;
+  background: var(--warning-soft);
+}
+
+.summary-value-button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.summary-value-button strong {
+  color: var(--brand-dark);
+  border-bottom: 1px dashed currentColor;
+}
+
+.summary-value-button small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.settlement-dialog {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.settlement-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settlement-table {
+  min-width: 520px;
+}
+
+@media (max-width: 700px) {
+  .settlement-dialog {
+    width: calc(100vw - 16px);
+  }
+
+  .settlement-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .settlement-table {
+    min-width: 0;
   }
 }

@@ -1,6 +1,7 @@
 'use strict'
 
 const STORAGE_KEY = 'calculator-tool-projects-v1'
+const SETTLEMENT_STORAGE_KEY = 'calculator-tool-settlements-v1'
 const moneyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
   currency: 'CNY',
@@ -43,6 +44,14 @@ const cancelCostEditButton = document.querySelector('#cancelCostEditButton')
 const detailDialog = document.querySelector('#detailDialog')
 const detailDialogTitle = document.querySelector('#detailDialogTitle')
 const projectDetailContent = document.querySelector('#projectDetailContent')
+const settlementDialog = document.querySelector('#settlementDialog')
+const settlementForm = document.querySelector('#settlementForm')
+const settlementDialogTitle = document.querySelector('#settlementDialogTitle')
+const settlementDialogContext = document.querySelector('#settlementDialogContext')
+const settlementDialogTotal = document.querySelector('#settlementDialogTotal')
+const settlementDetailList = document.querySelector('#settlementDetailList')
+const saveSettlementButton = document.querySelector('#saveSettlementButton')
+const cancelSettlementEditButton = document.querySelector('#cancelSettlementEditButton')
 
 const COST_CONFIG = {
   labor: {
@@ -98,13 +107,15 @@ const COST_CONFIG = {
 
 const state = {
   projects: loadProjects(),
+  settlements: loadSettlements(),
   editingId: null,
   query: '',
   yearFilter: '',
   draftDetails: createEmptyDetails(),
   costType: null,
   costContext: null,
-  editingCostItemId: null
+  editingCostItemId: null,
+  editingSettlementId: null
 }
 
 let toastTimer
@@ -246,6 +257,57 @@ function normalizeProject(source) {
   }
 }
 
+function normalizeSettlement(source) {
+  const settlement = source || {}
+  const createdDate = toText(settlement.createdAt).slice(0, 10)
+  const settlementDate = isValidDateText(settlement.settlementDate)
+    ? settlement.settlementDate
+    : (isValidDateText(createdDate) ? createdDate : getToday())
+  return {
+    id: toText(settlement.id) || createId(),
+    amount: Math.max(0, toNumber(settlement.amount)),
+    settlementDate,
+    createdAt: toText(settlement.createdAt) || new Date().toISOString(),
+    updatedAt: toText(settlement.updatedAt) || new Date().toISOString()
+  }
+}
+
+function loadSettlements() {
+  try {
+    const saved = localStorage.getItem(SETTLEMENT_STORAGE_KEY)
+    if (!saved) return []
+    const parsed = JSON.parse(saved)
+    return Array.isArray(parsed) ? parsed.map(normalizeSettlement) : []
+  } catch (error) {
+    console.error('读取结款数据失败', error)
+    return []
+  }
+}
+
+function saveSettlements() {
+  try {
+    localStorage.setItem(SETTLEMENT_STORAGE_KEY, JSON.stringify(state.settlements))
+  } catch (error) {
+    console.error('保存结款数据失败', error)
+    showToast('结款数据保存失败，请立即导出备份', true)
+  }
+}
+
+function getSettlementYear(settlement) {
+  return settlement.settlementDate.slice(0, 4)
+}
+
+function getYearFilteredSettlements() {
+  const settlements = state.yearFilter
+    ? state.settlements.filter((settlement) => getSettlementYear(settlement) === state.yearFilter)
+    : state.settlements
+  return [...settlements].sort((left, right) => right.settlementDate.localeCompare(left.settlementDate))
+}
+
+function sumSettlements(settlements) {
+  return settlements.reduce((total, settlement) => total + settlement.amount, 0)
+}
+
 function loadProjects() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
@@ -326,7 +388,8 @@ function getFilteredProjects() {
 function renderYearOptions() {
   const years = [...new Set([
     String(new Date().getFullYear()),
-    ...state.projects.map(getProjectYear)
+    ...state.projects.map(getProjectYear),
+    ...state.settlements.map(getSettlementYear)
   ])].sort((a, b) => Number(b) - Number(a))
 
   yearFilter.replaceChildren()
@@ -346,6 +409,7 @@ function renderYearOptions() {
 
 function renderSummary() {
   const projects = getYearFilteredProjects()
+  const settlements = getYearFilteredSettlements()
   const totals = projects.reduce((result, project) => {
     const calculated = calculateProject(project)
     result.contractAmount += project.contractAmount
@@ -369,6 +433,8 @@ function renderSummary() {
     totalCost: 0,
     balance: 0
   })
+  const settledAmount = sumSettlements(settlements)
+  const unsettledAmount = totals.balance - settledAmount
 
   document.querySelector('#summaryTitle').textContent = state.yearFilter ? `${state.yearFilter} 年度汇总` : '全部项目汇总'
   document.querySelector('#projectCount').textContent = `${projects.length} 个项目`
@@ -382,6 +448,11 @@ function renderSummary() {
   document.querySelector('#totalCost').textContent = formatMoney(totals.totalCost)
   const totalCostRatio = totals.contractAmount > 0 ? totals.totalCost / totals.contractAmount * 100 : 0
   document.querySelector('#totalCostRatio').textContent = formatPercent(totalCostRatio)
+  document.querySelector('#totalSettled').textContent = formatMoney(settledAmount)
+
+  const unsettledElement = document.querySelector('#totalUnsettled')
+  unsettledElement.textContent = formatMoney(unsettledAmount)
+  unsettledElement.classList.toggle('negative-value', unsettledAmount < 0)
 
   const balanceElement = document.querySelector('#totalBalance')
   balanceElement.textContent = formatMoney(totals.balance)
@@ -880,6 +951,133 @@ function showProjectDetail(id) {
   detailDialog.showModal()
 }
 
+function getSettlementDefaultDate() {
+  const today = getToday()
+  if (!state.yearFilter || today.startsWith(state.yearFilter)) return today
+  return `${state.yearFilter}-01-01`
+}
+
+function resetSettlementEditor() {
+  state.editingSettlementId = null
+  settlementForm.reset()
+  settlementForm.elements.namedItem('settlementDate').value = getSettlementDefaultDate()
+  saveSettlementButton.textContent = '新增明细'
+  cancelSettlementEditButton.hidden = true
+}
+
+function renderSettlementDetailList() {
+  const settlements = getYearFilteredSettlements()
+  settlementDialogTitle.textContent = state.yearFilter ? `${state.yearFilter} 年结款明细` : '全部结款明细'
+  settlementDialogContext.textContent = state.yearFilter ? `${state.yearFilter} 年度` : '全部年度'
+  settlementDialogTotal.textContent = `合计：${formatMoney(sumSettlements(settlements))}`
+  settlementDetailList.replaceChildren()
+
+  if (settlements.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'detail-empty'
+    empty.textContent = state.yearFilter ? `${state.yearFilter} 年暂无结款明细` : '暂无结款明细，请先新增。'
+    settlementDetailList.append(empty)
+    return
+  }
+
+  const wrap = document.createElement('div')
+  wrap.className = 'table-wrap cost-detail-table'
+  const table = document.createElement('table')
+  table.className = 'detail-table settlement-table'
+  const thead = document.createElement('thead')
+  const headRow = document.createElement('tr')
+  ;['结款金额', '结款日期', '操作'].forEach((label) => {
+    const th = document.createElement('th')
+    th.textContent = label
+    headRow.append(th)
+  })
+  thead.append(headRow)
+
+  const tbody = document.createElement('tbody')
+  settlements.forEach((settlement) => {
+    const row = document.createElement('tr')
+    const actions = document.createElement('td')
+    actions.dataset.label = '操作'
+    actions.className = 'actions-cell'
+    const editButton = document.createElement('button')
+    editButton.type = 'button'
+    editButton.className = 'row-button'
+    editButton.textContent = '编辑'
+    editButton.addEventListener('click', () => editSettlement(settlement.id))
+    const deleteButton = document.createElement('button')
+    deleteButton.type = 'button'
+    deleteButton.className = 'row-button delete'
+    deleteButton.textContent = '删除'
+    deleteButton.addEventListener('click', () => deleteSettlement(settlement.id))
+    actions.append(editButton, deleteButton)
+    row.append(
+      createCell('结款金额', formatMoney(settlement.amount), 'money-cell'),
+      createCell('结款日期', settlement.settlementDate),
+      actions
+    )
+    tbody.append(row)
+  })
+  table.append(thead, tbody)
+  wrap.append(table)
+  settlementDetailList.append(wrap)
+}
+
+function openSettlementDialog() {
+  resetSettlementEditor()
+  renderSettlementDetailList()
+  settlementDialog.showModal()
+  requestAnimationFrame(() => settlementForm.elements.namedItem('amount').focus())
+}
+
+function editSettlement(id) {
+  const settlement = state.settlements.find((item) => item.id === id)
+  if (!settlement) return
+  state.editingSettlementId = id
+  settlementForm.elements.namedItem('amount').value = settlement.amount
+  settlementForm.elements.namedItem('settlementDate').value = settlement.settlementDate
+  saveSettlementButton.textContent = '保存修改'
+  cancelSettlementEditButton.hidden = false
+  settlementForm.elements.namedItem('amount').focus()
+}
+
+function deleteSettlement(id) {
+  if (!confirm('确定删除这条结款明细吗？')) return
+  state.settlements = state.settlements.filter((settlement) => settlement.id !== id)
+  saveSettlements()
+  resetSettlementEditor()
+  renderYearOptions()
+  renderSummary()
+  renderSettlementDetailList()
+  showToast('结款明细已删除')
+}
+
+function handleSettlementSubmit(event) {
+  event.preventDefault()
+  if (!settlementForm.reportValidity()) return
+
+  const values = Object.fromEntries(new FormData(settlementForm).entries())
+  const existing = state.settlements.find((settlement) => settlement.id === state.editingSettlementId)
+  const settlement = normalizeSettlement({
+    ...values,
+    id: existing?.id,
+    createdAt: existing?.createdAt,
+    updatedAt: new Date().toISOString()
+  })
+  state.settlements = existing
+    ? state.settlements.map((item) => item.id === existing.id ? settlement : item)
+    : [...state.settlements, settlement]
+  saveSettlements()
+  resetSettlementEditor()
+  renderYearOptions()
+  renderSummary()
+  renderSettlementDetailList()
+  showToast(existing ? '结款明细已修改' : '结款明细已新增')
+}
+
+function closeSettlementDialog() {
+  if (settlementDialog.open) settlementDialog.close()
+}
+
 function downloadBlob(content, fileName, type) {
   const blob = new Blob([content], { type })
   const url = URL.createObjectURL(blob)
@@ -898,9 +1096,10 @@ function getDateStamp() {
 
 function exportJson() {
   const backup = {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
-    projects: state.projects
+    projects: state.projects,
+    settlements: state.settlements
   }
   downloadBlob(JSON.stringify(backup, null, 2), `项目费用备份-${getDateStamp()}.json`, 'application/json;charset=utf-8')
   showToast('备份文件已导出')
@@ -948,20 +1147,25 @@ async function importJsonFile(file) {
   try {
     const parsed = JSON.parse(await file.text())
     const source = Array.isArray(parsed) ? parsed : parsed.projects
+    const settlementSource = Array.isArray(parsed?.settlements) ? parsed.settlements : []
     if (!Array.isArray(source)) throw new Error('备份中没有项目列表')
 
     const projects = source.map(normalizeProject).filter((project) => project.serial && project.projectName)
+    const settlements = settlementSource.map(normalizeSettlement)
     if (source.length > 0 && projects.length === 0) throw new Error('备份中的项目数据格式不正确')
-    if (state.projects.length > 0 && !confirm(`导入将替换当前 ${state.projects.length} 条数据，是否继续？`)) return
+    if ((state.projects.length > 0 || state.settlements.length > 0)
+      && !confirm(`导入将替换当前 ${state.projects.length} 条项目和 ${state.settlements.length} 条结款明细，是否继续？`)) return
 
     state.projects = projects
+    state.settlements = settlements
     state.yearFilter = ''
     state.query = ''
     searchInput.value = ''
     saveProjects()
+    saveSettlements()
     resetEditor()
     render()
-    showToast(`已导入 ${projects.length} 条项目数据`)
+    showToast(`已导入 ${projects.length} 条项目和 ${settlements.length} 条结款明细`)
   } catch (error) {
     console.error('导入备份失败', error)
     showToast(`导入失败：${error.message}`, true)
@@ -971,20 +1175,22 @@ async function importJsonFile(file) {
 }
 
 function clearAllProjects() {
-  if (state.projects.length === 0) {
+  if (state.projects.length === 0 && state.settlements.length === 0) {
     showToast('当前没有可清空的数据')
     return
   }
-  if (!confirm('确定清空全部项目吗？此操作无法撤销，建议先导出备份。')) return
+  if (!confirm('确定清空全部项目和结款明细吗？此操作无法撤销，建议先导出备份。')) return
 
   state.projects = []
+  state.settlements = []
   state.yearFilter = ''
   state.query = ''
   searchInput.value = ''
   saveProjects()
+  saveSettlements()
   resetEditor()
   render()
-  showToast('全部项目已清空')
+  showToast('全部项目和结款明细已清空')
 }
 
 function applyKeywordSearch() {
@@ -1024,6 +1230,16 @@ document.querySelector('#finishDetailDialogButton').addEventListener('click', cl
 detailDialog.addEventListener('click', (event) => {
   if (event.target === detailDialog) closeDetailDialog()
 })
+
+document.querySelector('#openSettlementDialogButton').addEventListener('click', openSettlementDialog)
+settlementForm.addEventListener('submit', handleSettlementSubmit)
+cancelSettlementEditButton.addEventListener('click', resetSettlementEditor)
+document.querySelector('#closeSettlementDialogButton').addEventListener('click', closeSettlementDialog)
+document.querySelector('#finishSettlementDialogButton').addEventListener('click', closeSettlementDialog)
+settlementDialog.addEventListener('click', (event) => {
+  if (event.target === settlementDialog) closeSettlementDialog()
+})
+settlementDialog.addEventListener('close', resetSettlementEditor)
 
 keywordSearchButton.addEventListener('click', applyKeywordSearch)
 searchInput.addEventListener('keydown', (event) => {
@@ -1079,5 +1295,6 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 saveProjects()
+saveSettlements()
 render()
 syncDraftCostDisplays()

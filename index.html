@@ -88,6 +88,17 @@
           <span>预估结余</span>
           <strong id="totalBalance">¥0.00</strong>
         </article>
+        <article class="summary-card summary-settled">
+          <span>已结款</span>
+          <button id="openSettlementDialogButton" class="summary-value-button" type="button" title="点击维护结款明细">
+            <strong id="totalSettled">¥0.00</strong>
+            <small>点击维护明细</small>
+          </button>
+        </article>
+        <article class="summary-card summary-unsettled">
+          <span>未结款</span>
+          <strong id="totalUnsettled">¥0.00</strong>
+        </article>
       </div>
     </section>
 
@@ -267,6 +278,45 @@
       <div id="costDetailList" class="cost-detail-list"></div>
       <div class="dialog-footer">
         <button id="finishCostDialogButton" class="button button-primary" type="button">完成</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="settlementDialog" class="project-dialog settlement-dialog" aria-labelledby="settlementDialogTitle">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">SETTLEMENT DETAILS</p>
+          <h2 id="settlementDialogTitle">结款明细</h2>
+        </div>
+        <button id="closeSettlementDialogButton" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </div>
+
+      <div class="cost-summary-bar">
+        <span id="settlementDialogContext">全部年度</span>
+        <strong id="settlementDialogTotal">合计：¥0.00</strong>
+      </div>
+
+      <form id="settlementForm" class="cost-item-form">
+        <div class="settlement-fields">
+          <label class="field">
+            <span>结款金额 *</span>
+            <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+          </label>
+          <label class="field">
+            <span>结款日期 *</span>
+            <input name="settlementDate" type="date" required>
+          </label>
+        </div>
+        <div class="form-actions cost-item-actions">
+          <button id="saveSettlementButton" class="button button-primary" type="submit">新增明细</button>
+          <button id="cancelSettlementEditButton" class="button button-secondary" type="button" hidden>取消编辑</button>
+        </div>
+      </form>
+
+      <div id="settlementDetailList" class="cost-detail-list"></div>
+      <div class="dialog-footer">
+        <button id="finishSettlementDialogButton" class="button button-primary" type="button">完成</button>
       </div>
     </div>
   </dialog>
