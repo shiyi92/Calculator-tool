@@ -48,8 +48,11 @@
         <span id="projectCount" class="count-badge">0 个项目</span>
       </div>
       <div class="summary-grid">
-        <article class="summary-card summary-primary">
-          <span>合同含税金额</span>
+        <section class="summary-module" aria-labelledby="summaryAmountsTitle">
+          <h3 id="summaryAmountsTitle">项目金额</h3>
+          <div class="summary-module-grid">
+            <article class="summary-card summary-primary">
+              <span>合同含税金额</span>
           <strong id="totalContract">¥0.00</strong>
         </article>
         <article class="summary-card">
@@ -64,30 +67,6 @@
           <span>未付款金额</span>
           <strong id="totalUnpaid">¥0.00</strong>
         </article>
-        <article class="summary-card">
-          <span>人工费</span>
-          <strong id="totalLabor">¥0.00</strong>
-        </article>
-        <article class="summary-card">
-          <span>材料费</span>
-          <strong id="totalMaterial">¥0.00</strong>
-        </article>
-        <article class="summary-card">
-          <span>其它费用</span>
-          <strong id="totalOther">¥0.00</strong>
-        </article>
-        <article class="summary-card summary-cost">
-          <span>总费用</span>
-          <strong id="totalCost">¥0.00</strong>
-        </article>
-        <article class="summary-card summary-cost">
-          <span>费用占比</span>
-          <strong id="totalCostRatio">0.00%</strong>
-        </article>
-        <article class="summary-card summary-balance">
-          <span>预估结余</span>
-          <strong id="totalBalance">¥0.00</strong>
-        </article>
         <article class="summary-card summary-settled">
           <span>已结款</span>
           <button id="openSettlementDialogButton" class="summary-value-button" type="button" title="点击维护结款明细">
@@ -99,6 +78,54 @@
           <span>未结款</span>
           <strong id="totalUnsettled">¥0.00</strong>
         </article>
+          </div>
+        </section>
+        <section class="summary-module" aria-labelledby="summaryCostsTitle">
+          <h3 id="summaryCostsTitle">费用</h3>
+          <div class="summary-module-grid">
+            <article class="summary-card">
+              <span>人工费</span>
+          <strong id="totalLabor">¥0.00</strong>
+        </article>
+        <article class="summary-card">
+          <span>材料费</span>
+          <strong id="totalMaterial">¥0.00</strong>
+        </article>
+        <article class="summary-card">
+          <span>其它费用</span>
+          <strong id="totalOther">¥0.00</strong>
+        </article>
+        <article class="summary-card">
+          <span>管理费</span>
+          <strong id="totalManagementFee">¥0.00</strong>
+        </article>
+        <article class="summary-card summary-cost">
+          <span>总费用</span>
+          <strong id="totalCost">¥0.00</strong>
+        </article>
+        <article class="summary-card summary-cost">
+          <span>费用占比</span>
+          <strong id="totalCostRatio">0.00%</strong>
+        </article>
+          </div>
+        </section>
+        <section class="summary-module" aria-labelledby="summaryProfitTitle">
+          <h3 id="summaryProfitTitle">利润</h3>
+          <div class="summary-module-grid">
+        <article class="summary-card">
+          <span>利润</span>
+          <strong id="totalProfit">¥0.00</strong>
+        </article>
+        <article class="summary-card">
+          <span>毛利率（含税）</span>
+          <strong id="totalGrossMargin">0.00%</strong>
+        </article>
+        <article class="summary-card">
+          <span>利润率（不含税）</span>
+          <strong id="totalUntaxedProfitRate">0.00%</strong>
+        </article>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -121,11 +148,9 @@
       </div>
 
       <div class="toolbar">
-        <button id="exportJsonButton" class="button button-secondary" type="button">导出备份</button>
-        <button id="importJsonButton" class="button button-secondary" type="button">导入备份</button>
-        <input id="importFileInput" type="file" accept="application/json,.json" hidden>
-        <button id="exportCsvButton" class="button button-secondary" type="button">导出 CSV</button>
-        <button id="printButton" class="button button-secondary" type="button">打印</button>
+        <button id="exportExcelButton" class="button button-secondary" type="button">导出 Excel</button>
+        <button id="importExcelButton" class="button button-secondary" type="button">导入 Excel</button>
+        <input id="importFileInput" type="file" accept=".xml,.xls,application/xml,application/vnd.ms-excel" hidden>
         <button id="clearAllButton" class="button button-danger" type="button">清空全部</button>
       </div>
 
@@ -142,6 +167,7 @@
               <th>未付款金额</th>
               <th>人工费</th>
               <th>材料费</th>
+              <th>管理费</th>
               <th>其它费用</th>
               <th>总费用</th>
               <th>费用占比</th>
@@ -150,6 +176,10 @@
               <th>开票</th>
               <th>签约公司</th>
               <th>税点</th>
+              <th>预交税费</th>
+              <th>利润</th>
+              <th>毛利率(含税)</th>
+              <th>利润率(不含税)</th>
               <th>备注</th>
               <th class="actions-column">操作</th>
             </tr>
@@ -189,10 +219,13 @@
             <span>合同含税金额</span>
             <input name="contractAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
           </label>
-          <label class="field">
+          <div class="field">
             <span>已付款金额</span>
-            <input name="paidAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </label>
+            <button id="paidAmountButton" class="cost-editor-button" type="button">
+              <strong id="paidAmountDisplay">¥0.00</strong>
+              <small>点击维护付款明细</small>
+            </button>
+          </div>
           <div class="field">
             <span>人工费（含餐费/50/工）</span>
             <button id="laborCostButton" class="cost-editor-button" type="button">
@@ -205,6 +238,13 @@
             <button id="materialCostButton" class="cost-editor-button" type="button">
               <strong id="materialCostDisplay">¥0.00</strong>
               <small>点击维护产品明细</small>
+            </button>
+          </div>
+          <div class="field">
+            <span>管理费</span>
+            <button id="managementFeeButton" class="cost-editor-button" type="button">
+              <strong id="managementFeeDisplay">¥0.00</strong>
+              <small>按签约公司自动计算</small>
             </button>
           </div>
           <div class="field">
@@ -224,11 +264,19 @@
           </label>
           <label class="field">
             <span>签约公司</span>
-            <input name="company" type="text" maxlength="100" placeholder="请输入签约公司">
+            <select name="company">
+              <option value="">请选择签约公司</option>
+              <option value="长沙凯德">长沙凯德</option>
+              <option value="苏州德莎">苏州德莎</option>
+            </select>
           </label>
           <label class="field">
             <span>税点（%）</span>
             <input name="taxRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="例如：6">
+          </label>
+          <label class="field">
+            <span>预交税费</span>
+            <input name="prepaidTaxAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
           </label>
           <label class="field field-full">
             <span>备注</span>
@@ -249,6 +297,39 @@
           <button id="cancelFormButton" class="button button-secondary" type="button">取消</button>
         </div>
       </form>
+    </div>
+  </dialog>
+
+  <dialog id="managementFeeDialog" class="project-dialog management-fee-dialog" aria-labelledby="managementFeeDialogTitle">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">MANAGEMENT FEE</p>
+          <h2 id="managementFeeDialogTitle">管理费维护</h2>
+        </div>
+        <button id="closeManagementFeeDialogButton" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </div>
+
+      <div class="cost-summary-bar">
+        <span id="managementFeeDialogContext">当前项目</span>
+        <strong id="managementFeeDialogDefault">公司默认：¥0.00（0.00%）</strong>
+      </div>
+
+      <form id="managementFeeForm" class="cost-item-form">
+        <label class="field">
+          <span>管理费金额 *</span>
+          <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+          <small id="managementFeeDialogHint" class="field-hint">按公司默认规则自动计算。</small>
+        </label>
+        <div class="form-actions cost-item-actions">
+          <button id="saveManagementFeeButton" class="button button-primary" type="submit">保存手工金额</button>
+          <button id="resetManagementFeeButton" class="button button-secondary" type="button">恢复默认</button>
+        </div>
+      </form>
+
+      <div class="dialog-footer">
+        <button id="finishManagementFeeDialogButton" class="button button-primary" type="button">完成</button>
+      </div>
     </div>
   </dialog>
 
@@ -282,6 +363,45 @@
     </div>
   </dialog>
 
+  <dialog id="laborDurationDialog" class="project-dialog labor-duration-dialog" aria-labelledby="laborDurationDialogTitle">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">LABOR DURATION</p>
+          <h2 id="laborDurationDialogTitle">工期登记</h2>
+        </div>
+        <button id="closeLaborDurationDialogButton" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </div>
+
+      <div class="cost-summary-bar">
+        <span id="laborDurationDialogContext">当前人员</span>
+        <strong id="laborDurationDialogTotal">汇总工期：0 天</strong>
+      </div>
+
+      <form id="laborDurationForm" class="cost-item-form">
+        <div class="labor-duration-fields">
+          <label class="field">
+            <span>登记日期 *</span>
+            <input name="registrationDate" type="date" required>
+          </label>
+          <label class="field">
+            <span>工期（天） *</span>
+            <input name="days" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+          </label>
+        </div>
+        <div class="form-actions cost-item-actions">
+          <button id="saveLaborDurationButton" class="button button-primary" type="submit">新增登记</button>
+          <button id="cancelLaborDurationEditButton" class="button button-secondary" type="button" hidden>取消编辑</button>
+        </div>
+      </form>
+
+      <div id="laborDurationDetailList" class="cost-detail-list"></div>
+      <div class="dialog-footer">
+        <button id="finishLaborDurationDialogButton" class="button button-primary" type="button">完成</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="settlementDialog" class="project-dialog settlement-dialog" aria-labelledby="settlementDialogTitle">
     <div class="dialog-card">
       <div class="dialog-header">
@@ -306,6 +426,14 @@
           <label class="field">
             <span>结款日期 *</span>
             <input name="settlementDate" type="date" required>
+          </label>
+          <label class="field">
+            <span>结款来源</span>
+            <input name="source" type="text" maxlength="100" placeholder="例如：甲方付款">
+          </label>
+          <label class="field">
+            <span>备注</span>
+            <textarea name="note" rows="2" maxlength="200" placeholder="填写结款说明"></textarea>
           </label>
         </div>
         <div class="form-actions cost-item-actions">
@@ -338,7 +466,7 @@
   </dialog>
 
   <footer class="app-footer">
-    数据仅保存在当前浏览器中，请定期使用“导出备份”保存数据。
+    数据仅保存在当前浏览器中，请定期使用“导出 Excel”保存数据。
   </footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

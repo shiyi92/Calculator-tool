@@ -32,6 +32,13 @@ const searchInput = document.querySelector('#searchInput')
 const importFileInput = document.querySelector('#importFileInput')
 const installButton = document.querySelector('#installButton')
 const toast = document.querySelector('#toast')
+const managementFeeDialog = document.querySelector('#managementFeeDialog')
+const managementFeeForm = document.querySelector('#managementFeeForm')
+const managementFeeAmountInput = managementFeeForm.querySelector('[name="amount"]')
+const managementFeeDialogTitle = document.querySelector('#managementFeeDialogTitle')
+const managementFeeDialogContext = document.querySelector('#managementFeeDialogContext')
+const managementFeeDialogDefault = document.querySelector('#managementFeeDialogDefault')
+const managementFeeDialogHint = document.querySelector('#managementFeeDialogHint')
 const costDialog = document.querySelector('#costDialog')
 const costItemForm = document.querySelector('#costItemForm')
 const costItemFields = document.querySelector('#costItemFields')
@@ -41,6 +48,14 @@ const costDialogContext = document.querySelector('#costDialogContext')
 const costDialogTotal = document.querySelector('#costDialogTotal')
 const saveCostItemButton = document.querySelector('#saveCostItemButton')
 const cancelCostEditButton = document.querySelector('#cancelCostEditButton')
+const laborDurationDialog = document.querySelector('#laborDurationDialog')
+const laborDurationForm = document.querySelector('#laborDurationForm')
+const laborDurationDialogTitle = document.querySelector('#laborDurationDialogTitle')
+const laborDurationDialogContext = document.querySelector('#laborDurationDialogContext')
+const laborDurationDialogTotal = document.querySelector('#laborDurationDialogTotal')
+const laborDurationDetailList = document.querySelector('#laborDurationDetailList')
+const saveLaborDurationButton = document.querySelector('#saveLaborDurationButton')
+const cancelLaborDurationEditButton = document.querySelector('#cancelLaborDurationEditButton')
 const detailDialog = document.querySelector('#detailDialog')
 const detailDialogTitle = document.querySelector('#detailDialogTitle')
 const projectDetailContent = document.querySelector('#projectDetailContent')
@@ -53,6 +68,12 @@ const settlementDetailList = document.querySelector('#settlementDetailList')
 const saveSettlementButton = document.querySelector('#saveSettlementButton')
 const cancelSettlementEditButton = document.querySelector('#cancelSettlementEditButton')
 
+const MATERIAL_PRODUCTS = [
+  '德丽斯（组）', '贝斯', '托普（白色）', '聚酯布', '雅德丽', '柏瑞斯',
+  '屋美特底漆', '屋美特表层1216', '屋美特表层1211', '固锈剂', '聚脲', '稀释剂'
+]
+const COMPANIES = ['长沙凯德', '苏州德莎']
+
 const COST_CONFIG = {
   labor: {
     label: '人工费',
@@ -60,12 +81,11 @@ const COST_CONFIG = {
     amountKey: 'laborCost',
     fields: [
       { name: 'name', label: '姓名', type: 'text', maxlength: 100, required: true },
-      { name: 'duration', label: '工期', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true }
     ],
     columns: [
       { label: '姓名', value: (item) => item.name || '-' },
-      { label: '工期', value: (item) => formatNumber(item.duration) },
+      { key: 'duration', label: '汇总工期', value: (item) => `${formatNumber(getLaborDuration(item))} 天` },
       { label: '单价', value: (item) => formatMoney(item.unitPrice) },
       { label: '总计', value: (item) => formatMoney(getCostItemAmount('labor', item)) }
     ]
@@ -75,13 +95,15 @@ const COST_CONFIG = {
     detailKey: 'materialDetails',
     amountKey: 'materialCost',
     fields: [
-      { name: 'product', label: '产品', type: 'text', maxlength: 100, required: true },
+      { name: 'product', label: '产品', type: 'select', options: MATERIAL_PRODUCTS, required: true },
+      { name: 'pickupQuantity', label: '拿货', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'usedQuantity', label: '使用', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'remainingQuantity', label: '剩余', type: 'number', min: 0, step: 0.01, required: true }
     ],
     columns: [
       { label: '产品', value: (item) => item.product || '-' },
+      { label: '拿货', value: (item) => formatNumber(item.pickupQuantity) },
       { label: '单价', value: (item) => formatMoney(item.unitPrice) },
       { label: '使用', value: (item) => formatNumber(item.usedQuantity) },
       { label: '剩余', value: (item) => formatNumber(item.remainingQuantity) },
@@ -93,14 +115,30 @@ const COST_CONFIG = {
     detailKey: 'otherDetails',
     amountKey: 'otherCost',
     fields: [
-      { name: 'category', label: '类别', type: 'text', maxlength: 100, required: true },
       { name: 'expenseDate', label: '日期', type: 'date', required: true },
-      { name: 'amount', label: '金额', type: 'number', min: 0, step: 0.01, required: true }
+      { name: 'details', label: '费用明细', type: 'other-details', required: true },
+      { name: 'payer', label: '付款人', type: 'text', maxlength: 100 },
+      { name: 'note', label: '备注', type: 'textarea', maxlength: 200 }
     ],
     columns: [
-      { label: '类别', value: (item) => item.category || '-' },
       { label: '日期', value: (item) => item.expenseDate || '-' },
-      { label: '金额', value: (item) => formatMoney(item.amount) }
+      { label: '明细', value: (item) => formatOtherDetails(item.details) },
+      { label: '金额', value: (item) => formatMoney(getCostItemAmount('other', item)) },
+      { label: '付款人', value: (item) => item.payer || '-' },
+      { label: '备注', value: (item) => item.note || '-' }
+    ]
+  },
+  payment: {
+    label: '已付款',
+    detailKey: 'paymentDetails',
+    amountKey: 'paidAmount',
+    fields: [
+      { name: 'paymentDate', label: '付款日期', type: 'date', required: true },
+      { name: 'amount', label: '付款金额', type: 'number', min: 0, step: 0.01, required: true }
+    ],
+    columns: [
+      { label: '付款日期', value: (item) => item.paymentDate || '-' },
+      { label: '付款金额', value: (item) => formatMoney(item.amount) }
     ]
   }
 }
@@ -112,9 +150,13 @@ const state = {
   query: '',
   yearFilter: '',
   draftDetails: createEmptyDetails(),
+  draftManagement: createEmptyManagement(),
+  managementContext: null,
   costType: null,
   costContext: null,
   editingCostItemId: null,
+  laborDurationPersonId: null,
+  editingLaborDurationId: null,
   editingSettlementId: null
 }
 
@@ -163,26 +205,80 @@ function resolveProjectDate(project) {
 }
 
 function createEmptyDetails() {
-  return { laborDetails: [], materialDetails: [], otherDetails: [] }
+  return { laborDetails: [], materialDetails: [], otherDetails: [], paymentDetails: [] }
+}
+
+function createEmptyManagement() {
+  return { amount: 0, manual: false, configured: true }
+}
+
+function getDefaultManagementFeeRate(company) {
+  return toText(company).trim() === COMPANIES[0] ? 0.04 : 0
+}
+
+function parseBoolean(value, fallback = false) {
+  if (value === true || value === 1) return true
+  if (['true', '1', 'yes', '是'].includes(toText(value).trim().toLowerCase())) return true
+  if (value === false || value === 0) return false
+  if (['false', '0', 'no', '否'].includes(toText(value).trim().toLowerCase())) return false
+  return fallback
+}
+
+function normalizeDurationEntry(entry, fallbackDate = getToday()) {
+  return {
+    id: toText(entry.id) || createId(),
+    registrationDate: isValidDateText(entry.registrationDate) ? entry.registrationDate : fallbackDate,
+    days: Math.max(0, toNumber(entry.days))
+  }
+}
+
+function getLaborDuration(item) {
+  if (!Array.isArray(item.durationEntries)) return Math.max(0, toNumber(item.duration))
+  return item.durationEntries.reduce((total, entry) => total + Math.max(0, toNumber(entry.days)), 0)
 }
 
 function cloneItems(items) {
-  return items.map((item) => ({ ...item }))
+  return items.map((item) => ({
+    ...item,
+    ...(Array.isArray(item.durationEntries)
+      ? { durationEntries: item.durationEntries.map((entry) => ({ ...entry })) }
+      : {})
+  }))
 }
 
 function getCostItemAmount(type, item) {
-  if (type === 'labor') return Math.max(0, toNumber(item.duration)) * Math.max(0, toNumber(item.unitPrice))
+  if (type === 'labor') return getLaborDuration(item) * Math.max(0, toNumber(item.unitPrice))
   if (type === 'material') return Math.max(0, toNumber(item.unitPrice)) * Math.max(0, toNumber(item.usedQuantity))
+  if (type === 'payment') return Math.max(0, toNumber(item.amount))
+  if (Array.isArray(item.details)) return item.details.reduce((total, detail) => total + Math.max(0, toNumber(detail.amount)), 0)
   return Math.max(0, toNumber(item.amount))
+}
+
+function normalizeOtherDetail(detail) {
+  return {
+    category: toText(detail.category ?? detail.name).trim(),
+    amount: Math.max(0, toNumber(detail.amount))
+  }
+}
+
+function formatOtherDetails(details) {
+  if (!Array.isArray(details) || details.length === 0) return '-'
+  return details.map((detail) => `${detail.category || '未命名'} ${formatMoney(detail.amount)}`).join('；')
 }
 
 function normalizeCostItem(type, item, fallbackDate = getToday()) {
   const id = toText(item.id) || createId()
   if (type === 'labor') {
+    const durationEntries = Array.isArray(item.durationEntries)
+      ? item.durationEntries.map((entry) => normalizeDurationEntry(entry, fallbackDate))
+      : (Math.max(0, toNumber(item.duration)) > 0
+          ? [normalizeDurationEntry({ registrationDate: fallbackDate, days: item.duration }, fallbackDate)]
+          : [])
     return {
       id,
       name: toText(item.name).trim(),
-      duration: Math.max(0, toNumber(item.duration)),
+      durationEntries,
+      duration: getLaborDuration({ durationEntries }),
       unitPrice: Math.max(0, toNumber(item.unitPrice))
     }
   }
@@ -190,17 +286,33 @@ function normalizeCostItem(type, item, fallbackDate = getToday()) {
     return {
       id,
       product: toText(item.product).trim(),
+      pickupQuantity: Math.max(0, toNumber(item.pickupQuantity ?? item.pickup ?? item.receivedQuantity)),
       unitPrice: Math.max(0, toNumber(item.unitPrice)),
       usedQuantity: Math.max(0, toNumber(item.usedQuantity ?? item.used)),
       remainingQuantity: Math.max(0, toNumber(item.remainingQuantity ?? item.remaining))
     }
   }
+  if (type === 'payment') {
+    return {
+      id,
+      paymentDate: isValidDateText(item.paymentDate) ? item.paymentDate : fallbackDate,
+      amount: Math.max(0, toNumber(item.amount))
+    }
+  }
   const expenseDate = isValidDateText(item.expenseDate) ? item.expenseDate : fallbackDate
+  const details = Array.isArray(item.details)
+    ? item.details.map(normalizeOtherDetail).filter((detail) => detail.category || detail.amount > 0)
+    : (toText(item.category).trim() || toNumber(item.amount) > 0
+        ? [normalizeOtherDetail({ category: item.category, amount: item.amount })]
+        : [])
   return {
     id,
-    category: toText(item.category).trim(),
     expenseDate,
-    amount: Math.max(0, toNumber(item.amount))
+    details,
+    category: details.map((detail) => detail.category).filter(Boolean).join('、'),
+    amount: details.reduce((total, detail) => total + detail.amount, 0),
+    payer: toText(item.payer).trim(),
+    note: toText(item.note).trim()
   }
 }
 
@@ -220,6 +332,9 @@ function normalizeCostDetails(project, type, projectDate) {
       product: '历史汇总', unitPrice: legacyAmount, usedQuantity: 1, remainingQuantity: 0
     }, projectDate)]
   }
+  if (type === 'payment') {
+    return [normalizeCostItem(type, { paymentDate: projectDate, amount: legacyAmount }, projectDate)]
+  }
   return [normalizeCostItem(type, { category: '历史汇总', expenseDate: projectDate, amount: legacyAmount }, projectDate)]
 }
 
@@ -233,6 +348,14 @@ function normalizeProject(source) {
   const laborDetails = normalizeCostDetails(project, 'labor', projectDate)
   const materialDetails = normalizeCostDetails(project, 'material', projectDate)
   const otherDetails = normalizeCostDetails(project, 'other', projectDate)
+  const paymentDetails = normalizeCostDetails(project, 'payment', projectDate)
+  const paidAmount = sumCostItems('payment', paymentDetails)
+  const hasManagementFeeData = [
+    'managementFeeAmount', 'managementFeeManual', 'managementFeeConfigured'
+  ].some((key) => Object.prototype.hasOwnProperty.call(project, key))
+  const managementFeeConfigured = hasManagementFeeData
+    ? parseBoolean(project.managementFeeConfigured, true)
+    : false
 
   return {
     id: toText(project.id) || createId(),
@@ -240,13 +363,18 @@ function normalizeProject(source) {
     serial: toText(project.serial).trim(),
     projectName: toText(project.projectName).trim(),
     contractAmount: Math.max(0, toNumber(project.contractAmount)),
-    paidAmount: Math.max(0, toNumber(project.paidAmount)),
+    paidAmount,
     laborDetails,
     materialDetails,
     otherDetails,
+    paymentDetails,
     laborCost: sumCostItems('labor', laborDetails),
     materialCost: sumCostItems('material', materialDetails),
     otherCost: sumCostItems('other', otherDetails),
+    managementFeeAmount: Math.max(0, toNumber(project.managementFeeAmount)),
+    managementFeeManual: parseBoolean(project.managementFeeManual),
+    managementFeeConfigured,
+    prepaidTaxAmount: Math.max(0, toNumber(project.prepaidTaxAmount)),
     warrantyPeriod: toText(project.warrantyPeriod).trim(),
     invoice: toText(project.invoice).trim(),
     company: toText(project.company).trim(),
@@ -267,6 +395,8 @@ function normalizeSettlement(source) {
     id: toText(settlement.id) || createId(),
     amount: Math.max(0, toNumber(settlement.amount)),
     settlementDate,
+    source: toText(settlement.source).trim(),
+    note: toText(settlement.note).trim(),
     createdAt: toText(settlement.createdAt) || new Date().toISOString(),
     updatedAt: toText(settlement.updatedAt) || new Date().toISOString()
   }
@@ -289,7 +419,7 @@ function saveSettlements() {
     localStorage.setItem(SETTLEMENT_STORAGE_KEY, JSON.stringify(state.settlements))
   } catch (error) {
     console.error('保存结款数据失败', error)
-    showToast('结款数据保存失败，请立即导出备份', true)
+    showToast('结款数据保存失败，请立即导出 Excel', true)
   }
 }
 
@@ -325,17 +455,34 @@ function saveProjects() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects))
   } catch (error) {
     console.error('保存本地数据失败', error)
-    showToast('本地保存失败，请立即导出备份', true)
+    showToast('本地保存失败，请立即导出 Excel', true)
   }
 }
 
 function calculateProject(project) {
   const unpaidAmount = project.contractAmount - project.paidAmount
-  const totalCost = project.laborCost + project.materialCost + project.otherCost
+  const defaultManagementFee = project.contractAmount * getDefaultManagementFeeRate(project.company)
+  const managementFeeAmount = !project.managementFeeConfigured
+    ? 0
+    : project.managementFeeManual ? project.managementFeeAmount : defaultManagementFee
+  const totalCost = project.laborCost + project.materialCost + project.otherCost + managementFeeAmount
   const balance = project.contractAmount - totalCost
   const untaxedAmount = project.contractAmount / (1 + project.taxRate / 100)
   const costRatio = project.contractAmount > 0 ? totalCost / project.contractAmount * 100 : 0
-  return { unpaidAmount, totalCost, balance, untaxedAmount, costRatio }
+  const profit = untaxedAmount - totalCost
+  const grossMargin = project.contractAmount > 0 ? profit / project.contractAmount * 100 : 0
+  const untaxedProfitRate = untaxedAmount > 0 ? profit / untaxedAmount * 100 : 0
+  return {
+    unpaidAmount,
+    managementFeeAmount,
+    totalCost,
+    balance,
+    untaxedAmount,
+    costRatio,
+    profit,
+    grossMargin,
+    untaxedProfitRate
+  }
 }
 
 function formatMoney(value) {
@@ -360,6 +507,16 @@ function showToast(message, isError = false) {
 
 function getControl(name) {
   return form.elements.namedItem(name)
+}
+
+function ensureCompanyOption(company) {
+  const value = toText(company).trim()
+  const companyControl = getControl('company')
+  if (!value || !companyControl || Array.from(companyControl.options).some((option) => option.value === value)) return
+  const option = document.createElement('option')
+  option.value = value
+  option.textContent = `${value}（历史值）`
+  companyControl.append(option)
 }
 
 function getProjectYear(project) {
@@ -419,7 +576,9 @@ function renderSummary() {
     result.laborCost += project.laborCost
     result.materialCost += project.materialCost
     result.otherCost += project.otherCost
+    result.managementFee += calculated.managementFeeAmount
     result.totalCost += calculated.totalCost
+    result.profit += calculated.profit
     result.balance += calculated.balance
     return result
   }, {
@@ -430,7 +589,9 @@ function renderSummary() {
     laborCost: 0,
     materialCost: 0,
     otherCost: 0,
+    managementFee: 0,
     totalCost: 0,
+    profit: 0,
     balance: 0
   })
   const settledAmount = sumSettlements(settlements)
@@ -445,18 +606,20 @@ function renderSummary() {
   document.querySelector('#totalLabor').textContent = formatMoney(totals.laborCost)
   document.querySelector('#totalMaterial').textContent = formatMoney(totals.materialCost)
   document.querySelector('#totalOther').textContent = formatMoney(totals.otherCost)
+  document.querySelector('#totalManagementFee').textContent = formatMoney(totals.managementFee)
   document.querySelector('#totalCost').textContent = formatMoney(totals.totalCost)
   const totalCostRatio = totals.contractAmount > 0 ? totals.totalCost / totals.contractAmount * 100 : 0
+  const totalGrossMargin = totals.contractAmount > 0 ? totals.profit / totals.contractAmount * 100 : 0
+  const totalUntaxedProfitRate = totals.untaxedAmount > 0 ? totals.profit / totals.untaxedAmount * 100 : 0
   document.querySelector('#totalCostRatio').textContent = formatPercent(totalCostRatio)
+  document.querySelector('#totalProfit').textContent = formatMoney(totals.profit)
+  document.querySelector('#totalGrossMargin').textContent = formatPercent(totalGrossMargin)
+  document.querySelector('#totalUntaxedProfitRate').textContent = formatPercent(totalUntaxedProfitRate)
   document.querySelector('#totalSettled').textContent = formatMoney(settledAmount)
 
   const unsettledElement = document.querySelector('#totalUnsettled')
   unsettledElement.textContent = formatMoney(unsettledAmount)
   unsettledElement.classList.toggle('negative-value', unsettledAmount < 0)
-
-  const balanceElement = document.querySelector('#totalBalance')
-  balanceElement.textContent = formatMoney(totals.balance)
-  balanceElement.classList.toggle('negative-value', totals.balance < 0)
 }
 
 function createCell(label, value, className = '') {
@@ -481,6 +644,78 @@ function createCostCell(project, type) {
   button.addEventListener('click', () => openCostDialog(type, { mode: 'project', projectId: project.id }))
   cell.append(button)
   return cell
+}
+
+function createManagementFeeCell(project) {
+  const calculated = calculateProject(project)
+  const cell = document.createElement('td')
+  cell.dataset.label = '管理费'
+  cell.className = 'money-cell'
+
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'cost-link-button'
+  button.textContent = formatMoney(calculated.managementFeeAmount)
+  button.title = '维护管理费'
+  button.addEventListener('click', () => openManagementFeeDialog({ mode: 'project', projectId: project.id }))
+  cell.append(button)
+  return cell
+}
+
+function getManagementFeeProject(context) {
+  if (context.mode === 'draft') return getPreviewProject()
+  return state.projects.find((project) => project.id === context.projectId)
+}
+
+function applyManagementFeeUpdate(context, amount, manual) {
+  if (context.mode === 'draft') {
+    state.draftManagement = { amount, manual, configured: true }
+    syncDraftCostDisplays()
+    return
+  }
+
+  state.projects = state.projects.map((project) => project.id === context.projectId
+    ? normalizeProject({
+      ...project,
+      managementFeeAmount: amount,
+      managementFeeManual: manual,
+      managementFeeConfigured: true,
+      updatedAt: new Date().toISOString()
+    })
+    : project)
+  saveProjects()
+  render()
+}
+
+function closeManagementFeeDialog() {
+  if (managementFeeDialog.open) managementFeeDialog.close()
+}
+
+function openManagementFeeDialog(context) {
+  const project = getManagementFeeProject(context)
+  if (!project) return
+  const calculated = calculateProject(project)
+  const defaultAmount = project.contractAmount * getDefaultManagementFeeRate(project.company)
+  state.managementContext = context
+  managementFeeDialogTitle.textContent = '管理费维护'
+  managementFeeDialogContext.textContent = context.mode === 'draft'
+    ? '当前编辑项目'
+    : `${project.projectName || '项目'} · ${project.company || '未选择公司'}`
+  managementFeeDialogDefault.textContent = `公司默认：${formatMoney(defaultAmount)}（${formatPercent(getDefaultManagementFeeRate(project.company) * 100)}）`
+  managementFeeDialogHint.textContent = project.managementFeeManual
+    ? '当前为手工金额，保存后会覆盖公司默认值。'
+    : (project.managementFeeConfigured ? '当前按公司默认规则自动计算。' : '历史项目默认不计管理费，点击恢复默认后启用自动计算。')
+  managementFeeAmountInput.value = calculated.managementFeeAmount.toFixed(2)
+  managementFeeDialog.showModal()
+}
+
+function saveManagementFee(manual) {
+  const context = state.managementContext
+  if (!context || !managementFeeForm.reportValidity()) return
+  const amount = Math.max(0, toNumber(managementFeeAmountInput.value))
+  applyManagementFeeUpdate(context, manual ? amount : 0, manual)
+  closeManagementFeeDialog()
+  showToast(manual ? '管理费已保存' : '管理费已恢复默认')
 }
 
 function createActionCell(project) {
@@ -518,7 +753,7 @@ function renderTable() {
     const row = document.createElement('tr')
     row.className = 'empty-row'
     const cell = document.createElement('td')
-    cell.colSpan = 19
+    cell.colSpan = 24
     cell.textContent = state.query || state.yearFilter ? '没有找到匹配的项目' : '暂无项目，先录入第一条数据吧'
     row.append(cell)
     tableBody.append(row)
@@ -535,10 +770,11 @@ function renderTable() {
       createCell('项目名称', project.projectName || '-'),
       createCell('合同含税金额', formatMoney(project.contractAmount), 'money-cell'),
       createCell('不含税金额', formatMoney(calculated.untaxedAmount), 'money-cell'),
-      createCell('已付款金额', formatMoney(project.paidAmount), 'money-cell'),
+      createCostCell(project, 'payment'),
       createCell('未付款金额', formatMoney(calculated.unpaidAmount), `money-cell ${calculated.unpaidAmount < 0 ? 'negative-value' : ''}`),
       createCostCell(project, 'labor'),
       createCostCell(project, 'material'),
+      createManagementFeeCell(project),
       createCostCell(project, 'other'),
       createCell('总费用', formatMoney(calculated.totalCost), 'money-cell'),
       createCell('费用占比', formatPercent(calculated.costRatio), 'money-cell'),
@@ -547,6 +783,10 @@ function renderTable() {
       createCell('开票', project.invoice || '-'),
       createCell('签约公司', project.company || '-'),
       createCell('税点', formatPercent(project.taxRate)),
+      createCell('预交税费', formatMoney(project.prepaidTaxAmount), 'money-cell'),
+      createCell('利润', formatMoney(calculated.profit), `money-cell ${calculated.profit < 0 ? 'negative-value' : ''}`),
+      createCell('毛利率(含税)', formatPercent(calculated.grossMargin), 'money-cell'),
+      createCell('利润率(不含税)', formatPercent(calculated.untaxedProfitRate), 'money-cell'),
       createCell('备注', project.notes || '-', 'notes-cell'),
       createActionCell(project)
     )
@@ -565,11 +805,16 @@ function getPreviewProject() {
   return normalizeProject({
     projectDate: getControl('projectDate').value,
     contractAmount: getControl('contractAmount').value,
-    paidAmount: getControl('paidAmount').value,
+    company: getControl('company').value,
     taxRate: getControl('taxRate').value,
+    prepaidTaxAmount: getControl('prepaidTaxAmount').value,
+    managementFeeAmount: state.draftManagement.amount,
+    managementFeeManual: state.draftManagement.manual,
+    managementFeeConfigured: state.draftManagement.configured,
     laborDetails: state.draftDetails.laborDetails,
     materialDetails: state.draftDetails.materialDetails,
-    otherDetails: state.draftDetails.otherDetails
+    otherDetails: state.draftDetails.otherDetails,
+    paymentDetails: state.draftDetails.paymentDetails
   })
 }
 
@@ -580,6 +825,10 @@ function updateCalculationPreview() {
   document.querySelector('#previewCost').textContent = formatMoney(calculated.totalCost)
   document.querySelector('#previewCostRatio').textContent = formatPercent(calculated.costRatio)
 
+  const managementFeeDisplay = document.querySelector('#managementFeeDisplay')
+  managementFeeDisplay.textContent = formatMoney(calculated.managementFeeAmount)
+  managementFeeDisplay.nextElementSibling.textContent = state.draftManagement.manual ? '手工金额，点击修改' : '按签约公司自动计算'
+
   const balanceElement = document.querySelector('#previewBalance')
   balanceElement.textContent = formatMoney(calculated.balance)
   balanceElement.classList.toggle('negative-value', calculated.balance < 0)
@@ -589,6 +838,10 @@ function syncDraftCostDisplays() {
   document.querySelector('#laborCostDisplay').textContent = formatMoney(sumCostItems('labor', state.draftDetails.laborDetails))
   document.querySelector('#materialCostDisplay').textContent = formatMoney(sumCostItems('material', state.draftDetails.materialDetails))
   document.querySelector('#otherCostDisplay').textContent = formatMoney(sumCostItems('other', state.draftDetails.otherDetails))
+  document.querySelector('#paidAmountDisplay').textContent = formatMoney(sumCostItems('payment', state.draftDetails.paymentDetails))
+  const draftManagement = calculateProject(getPreviewProject())
+  document.querySelector('#managementFeeDisplay').textContent = formatMoney(draftManagement.managementFeeAmount)
+  document.querySelector('#managementFeeDisplay').nextElementSibling.textContent = state.draftManagement.manual ? '手工金额，点击修改' : '按签约公司自动计算'
   updateCalculationPreview()
 }
 
@@ -602,6 +855,10 @@ function getProjectFromForm() {
     laborDetails: state.draftDetails.laborDetails,
     materialDetails: state.draftDetails.materialDetails,
     otherDetails: state.draftDetails.otherDetails,
+    paymentDetails: state.draftDetails.paymentDetails,
+    managementFeeAmount: state.draftManagement.amount,
+    managementFeeManual: state.draftManagement.manual,
+    managementFeeConfigured: state.draftManagement.configured,
     updatedAt: new Date().toISOString()
   })
 }
@@ -609,6 +866,8 @@ function getProjectFromForm() {
 function resetEditor() {
   state.editingId = null
   state.draftDetails = createEmptyDetails()
+  state.draftManagement = createEmptyManagement()
+  state.managementContext = null
   formTitle.textContent = '新增项目'
   submitButton.textContent = '保存项目'
   form.reset()
@@ -632,10 +891,17 @@ function startEdit(id) {
   state.draftDetails = {
     laborDetails: cloneItems(project.laborDetails),
     materialDetails: cloneItems(project.materialDetails),
-    otherDetails: cloneItems(project.otherDetails)
+    otherDetails: cloneItems(project.otherDetails),
+    paymentDetails: cloneItems(project.paymentDetails)
+  }
+  state.draftManagement = {
+    amount: project.managementFeeAmount,
+    manual: project.managementFeeManual,
+    configured: project.managementFeeConfigured
   }
   formTitle.textContent = '编辑项目'
   submitButton.textContent = '保存修改'
+  ensureCompanyOption(project.company)
 
   Object.entries(project).forEach(([name, value]) => {
     const control = getControl(name)
@@ -719,17 +985,33 @@ function getCostFallbackDate() {
 }
 
 function createCostField(field) {
+  if (field.type === 'other-details') return createOtherDetailsField(field)
   const label = document.createElement('label')
   label.className = 'field'
   const title = document.createElement('span')
   title.textContent = field.required ? `${field.label} *` : field.label
-  const input = document.createElement('input')
+  const input = field.type === 'select'
+    ? document.createElement('select')
+    : (field.type === 'textarea' ? document.createElement('textarea') : document.createElement('input'))
   input.name = field.name
-  input.type = field.type
+  if (field.type !== 'select' && field.type !== 'textarea') input.type = field.type
   input.required = Boolean(field.required)
   if (field.min != null) input.min = String(field.min)
   if (field.step != null) input.step = String(field.step)
   if (field.maxlength != null) input.maxLength = field.maxlength
+  if (field.type === 'select') {
+    const placeholder = document.createElement('option')
+    placeholder.value = ''
+    placeholder.textContent = '请选择产品'
+    input.append(placeholder)
+    field.options.forEach((optionValue) => {
+      const option = document.createElement('option')
+      option.value = optionValue
+      option.textContent = optionValue
+      input.append(option)
+    })
+  }
+  if (field.type === 'textarea') input.rows = 3
   if (field.type === 'number') input.inputMode = 'decimal'
   label.append(title, input)
   return label
@@ -738,9 +1020,11 @@ function createCostField(field) {
 function resetCostItemEditor() {
   state.editingCostItemId = null
   costItemForm.reset()
+  if (state.costType === 'other') renderOtherDetailsEditor([])
   saveCostItemButton.textContent = '新增明细'
   cancelCostEditButton.hidden = true
   const dateControl = costItemForm.elements.namedItem('expenseDate')
+    || costItemForm.elements.namedItem('paymentDate')
   if (dateControl) dateControl.value = getCostFallbackDate()
 }
 
@@ -768,8 +1052,20 @@ function createDetailTable(type, items, editable) {
   items.forEach((item) => {
     const row = document.createElement('tr')
     config.columns.forEach((column) => {
-      const cell = createCell(column.label, column.value(item))
-      row.append(cell)
+      if (type === 'labor' && column.key === 'duration' && editable) {
+        const cell = document.createElement('td')
+        cell.dataset.label = column.label
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'cost-link-button'
+        button.textContent = column.value(item)
+        button.title = '点击维护登记日期和工期'
+        button.addEventListener('click', () => openLaborDurationDialog(item.id))
+        cell.append(button)
+        row.append(cell)
+        return
+      }
+      row.append(createCell(column.label, column.value(item)))
     })
     if (editable) {
       const actions = document.createElement('td')
@@ -838,17 +1134,37 @@ function editCostItem(id) {
   const item = getActiveCostItems().find((entry) => entry.id === id)
   if (!item) return
   state.editingCostItemId = id
-  COST_CONFIG[state.costType].fields.forEach((field) => {
-    const control = costItemForm.elements.namedItem(field.name)
-    if (control) control.value = item[field.name]
-  })
+  if (state.costType === 'other') {
+    ;['expenseDate', 'payer', 'note'].forEach((name) => {
+      const control = costItemForm.elements.namedItem(name)
+      if (control) control.value = item[name] || ''
+    })
+    renderOtherDetailsEditor(item.details)
+  } else {
+    COST_CONFIG[state.costType].fields.forEach((field) => {
+      const control = costItemForm.elements.namedItem(field.name)
+      if (control) {
+        if (field.name === 'product' && control.tagName === 'SELECT' && item.product
+          && !Array.from(control.options).some((option) => option.value === item.product)) {
+          const option = document.createElement('option')
+          option.value = item.product
+          option.textContent = `${item.product}（历史值）`
+          control.append(option)
+        }
+        control.value = item[field.name]
+      }
+    })
+  }
   saveCostItemButton.textContent = '保存修改'
   cancelCostEditButton.hidden = false
   costItemForm.querySelector('input')?.focus()
 }
 
 function deleteCostItem(id) {
-  if (!confirm('确定删除这条费用明细吗？')) return
+  const message = state.costType === 'labor'
+    ? '确定删除该人员及其全部工期登记吗？'
+    : '确定删除这条费用明细吗？'
+  if (!confirm(message)) return
   setActiveCostItems(getActiveCostItems().filter((item) => item.id !== id))
   resetCostItemEditor()
   renderCostDetailList()
@@ -860,9 +1176,20 @@ function handleCostItemSubmit(event) {
   if (!costItemForm.reportValidity()) return
 
   const values = Object.fromEntries(new FormData(costItemForm).entries())
+  if (state.costType === 'other') {
+    values.details = collectOtherDetails()
+    if (values.details.length === 0) {
+      showToast('请至少填写一条费用明细', true)
+      return
+    }
+  }
   const items = getActiveCostItems()
   const existing = items.find((item) => item.id === state.editingCostItemId)
-  const costItem = normalizeCostItem(state.costType, { ...values, id: existing?.id }, getCostFallbackDate())
+  const costItem = normalizeCostItem(
+    state.costType,
+    { ...existing, ...values, id: existing?.id },
+    getCostFallbackDate()
+  )
   const updatedItems = existing
     ? items.map((item) => item.id === existing.id ? costItem : item)
     : [...items, costItem]
@@ -873,7 +1200,138 @@ function handleCostItemSubmit(event) {
   showToast(existing ? '费用明细已修改' : '费用明细已新增')
 }
 
+function getActiveLaborPerson() {
+  if (state.costType !== 'labor' || !state.laborDurationPersonId) return null
+  return getActiveCostItems().find((item) => item.id === state.laborDurationPersonId) || null
+}
+
+function resetLaborDurationEditor() {
+  state.editingLaborDurationId = null
+  laborDurationForm.reset()
+  laborDurationForm.elements.namedItem('registrationDate').value = getCostFallbackDate()
+  saveLaborDurationButton.textContent = '新增登记'
+  cancelLaborDurationEditButton.hidden = true
+}
+
+function renderLaborDurationDetailList() {
+  const person = getActiveLaborPerson()
+  if (!person) return
+  laborDurationDialogContext.textContent = person.name || '当前人员'
+  laborDurationDialogTotal.textContent = `汇总工期：${formatNumber(getLaborDuration(person))} 天`
+  laborDurationDetailList.replaceChildren()
+
+  if (person.durationEntries.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'detail-empty'
+    empty.textContent = '暂无工期登记，请先新增。'
+    laborDurationDetailList.append(empty)
+    return
+  }
+
+  const wrap = document.createElement('div')
+  wrap.className = 'table-wrap cost-detail-table'
+  const table = document.createElement('table')
+  table.className = 'detail-table labor-duration-table'
+  const thead = document.createElement('thead')
+  const headRow = document.createElement('tr')
+  ;['登记日期', '工期', '操作'].forEach((label) => {
+    const th = document.createElement('th')
+    th.textContent = label
+    headRow.append(th)
+  })
+  thead.append(headRow)
+
+  const tbody = document.createElement('tbody')
+  person.durationEntries.forEach((entry) => {
+    const row = document.createElement('tr')
+    const actions = document.createElement('td')
+    actions.dataset.label = '操作'
+    actions.className = 'actions-cell'
+    const editButton = document.createElement('button')
+    editButton.type = 'button'
+    editButton.className = 'row-button'
+    editButton.textContent = '编辑'
+    editButton.addEventListener('click', () => editLaborDurationEntry(entry.id))
+    const deleteButton = document.createElement('button')
+    deleteButton.type = 'button'
+    deleteButton.className = 'row-button delete'
+    deleteButton.textContent = '删除'
+    deleteButton.addEventListener('click', () => deleteLaborDurationEntry(entry.id))
+    actions.append(editButton, deleteButton)
+    row.append(
+      createCell('登记日期', entry.registrationDate),
+      createCell('工期', `${formatNumber(entry.days)} 天`),
+      actions
+    )
+    tbody.append(row)
+  })
+  table.append(thead, tbody)
+  wrap.append(table)
+  laborDurationDetailList.append(wrap)
+}
+
+function openLaborDurationDialog(personId) {
+  if (state.costType !== 'labor') return
+  const person = getActiveCostItems().find((item) => item.id === personId)
+  if (!person) return
+  state.laborDurationPersonId = personId
+  laborDurationDialogTitle.textContent = `${person.name || '人员'} · 工期登记`
+  resetLaborDurationEditor()
+  renderLaborDurationDetailList()
+  laborDurationDialog.showModal()
+}
+
+function editLaborDurationEntry(id) {
+  const entry = getActiveLaborPerson()?.durationEntries.find((item) => item.id === id)
+  if (!entry) return
+  state.editingLaborDurationId = id
+  laborDurationForm.elements.namedItem('registrationDate').value = entry.registrationDate
+  laborDurationForm.elements.namedItem('days').value = entry.days
+  saveLaborDurationButton.textContent = '保存修改'
+  cancelLaborDurationEditButton.hidden = false
+  laborDurationForm.elements.namedItem('registrationDate').focus()
+}
+
+function updateActiveLaborDurationEntries(entries) {
+  const person = getActiveLaborPerson()
+  if (!person) return
+  const updatedPerson = normalizeCostItem('labor', { ...person, durationEntries: entries }, getCostFallbackDate())
+  setActiveCostItems(getActiveCostItems().map((item) => item.id === person.id ? updatedPerson : item))
+  renderCostDetailList()
+}
+
+function deleteLaborDurationEntry(id) {
+  const person = getActiveLaborPerson()
+  if (!person || !confirm('确定删除这条工期登记吗？')) return
+  updateActiveLaborDurationEntries(person.durationEntries.filter((entry) => entry.id !== id))
+  resetLaborDurationEditor()
+  renderLaborDurationDetailList()
+  showToast('工期登记已删除')
+}
+
+function handleLaborDurationSubmit(event) {
+  event.preventDefault()
+  if (!laborDurationForm.reportValidity()) return
+  const person = getActiveLaborPerson()
+  if (!person) return
+  const values = Object.fromEntries(new FormData(laborDurationForm).entries())
+  const existing = person.durationEntries.find((entry) => entry.id === state.editingLaborDurationId)
+  const durationEntry = normalizeDurationEntry({ ...values, id: existing?.id }, getCostFallbackDate())
+  const entries = existing
+    ? person.durationEntries.map((entry) => entry.id === existing.id ? durationEntry : entry)
+    : [...person.durationEntries, durationEntry]
+  updateActiveLaborDurationEntries(entries)
+  resetLaborDurationEditor()
+  renderLaborDurationDetailList()
+  showToast(existing ? '工期登记已修改' : '工期登记已新增')
+}
+
+function closeLaborDurationDialog() {
+  if (laborDurationDialog.open) laborDurationDialog.close()
+}
+
 function closeCostDialog() {
+  closeLaborDurationDialog()
   if (costDialog.open) costDialog.close()
 }
 
@@ -932,8 +1390,13 @@ function showProjectDetail(id) {
     ['人工费', formatMoney(project.laborCost)],
     ['材料费', formatMoney(project.materialCost)],
     ['其它费用', formatMoney(project.otherCost)],
+    ['管理费', formatMoney(calculated.managementFeeAmount)],
+    ['预交税费', formatMoney(project.prepaidTaxAmount)],
     ['项目总费用', formatMoney(calculated.totalCost)],
     ['费用占比', formatPercent(calculated.costRatio)],
+    ['利润', formatMoney(calculated.profit)],
+    ['毛利率（含税）', formatPercent(calculated.grossMargin)],
+    ['利润率（不含税）', formatPercent(calculated.untaxedProfitRate)],
     ['预估结余', formatMoney(calculated.balance)],
     ['质保期', project.warrantyPeriod || '-'],
     ['开票', project.invoice || '-'],
@@ -944,6 +1407,7 @@ function showProjectDetail(id) {
 
   projectDetailContent.replaceChildren(
     info,
+    createCostDetailSection('payment', project),
     createCostDetailSection('labor', project),
     createCostDetailSection('material', project),
     createCostDetailSection('other', project)
@@ -986,7 +1450,7 @@ function renderSettlementDetailList() {
   table.className = 'detail-table settlement-table'
   const thead = document.createElement('thead')
   const headRow = document.createElement('tr')
-  ;['结款金额', '结款日期', '操作'].forEach((label) => {
+  ;['结款金额', '结款日期', '结款来源', '备注', '操作'].forEach((label) => {
     const th = document.createElement('th')
     th.textContent = label
     headRow.append(th)
@@ -1013,6 +1477,8 @@ function renderSettlementDetailList() {
     row.append(
       createCell('结款金额', formatMoney(settlement.amount), 'money-cell'),
       createCell('结款日期', settlement.settlementDate),
+      createCell('结款来源', settlement.source || '-'),
+      createCell('备注', settlement.note || '-', 'notes-cell'),
       actions
     )
     tbody.append(row)
@@ -1035,6 +1501,8 @@ function editSettlement(id) {
   state.editingSettlementId = id
   settlementForm.elements.namedItem('amount').value = settlement.amount
   settlementForm.elements.namedItem('settlementDate').value = settlement.settlementDate
+  settlementForm.elements.namedItem('source').value = settlement.source || ''
+  settlementForm.elements.namedItem('note').value = settlement.note || ''
   saveSettlementButton.textContent = '保存修改'
   cancelSettlementEditButton.hidden = false
   settlementForm.elements.namedItem('amount').focus()
@@ -1094,15 +1562,10 @@ function getDateStamp() {
   return getToday().replaceAll('-', '')
 }
 
-function exportJson() {
-  const backup = {
-    version: 3,
-    exportedAt: new Date().toISOString(),
-    projects: state.projects,
-    settlements: state.settlements
-  }
-  downloadBlob(JSON.stringify(backup, null, 2), `项目费用备份-${getDateStamp()}.json`, 'application/json;charset=utf-8')
-  showToast('备份文件已导出')
+function exportExcel() {
+  const workbook = createExcelWorkbook()
+  downloadBlob(workbook, `项目费用备份-${getDateStamp()}.xls`, 'application/vnd.ms-excel;charset=utf-8')
+  showToast('Excel 文件已导出')
 }
 
 function csvCell(value) {
@@ -1112,8 +1575,8 @@ function csvCell(value) {
 function exportCsv() {
   const headers = [
     '序号', '项目日期', '项目名称', '合同含税金额', '不含税金额', '已付款金额', '未付款金额',
-    '人工费', '材料费', '其它费用', '总费用', '费用占比(%)', '预估结余', '质保期', '开票',
-    '签约公司', '税点(%)', '备注'
+    '人工费', '材料费', '管理费', '其它费用', '总费用', '费用占比(%)', '预估结余', '质保期', '开票',
+    '签约公司', '税点(%)', '预交税费', '利润', '毛利率(含税)(%)', '利润率(不含税)(%)', '备注'
   ]
   const rows = state.projects.map((project) => {
     const calculated = calculateProject(project)
@@ -1127,6 +1590,7 @@ function exportCsv() {
       calculated.unpaidAmount,
       project.laborCost,
       project.materialCost,
+      calculated.managementFeeAmount,
       project.otherCost,
       calculated.totalCost,
       calculated.costRatio.toFixed(2),
@@ -1135,6 +1599,10 @@ function exportCsv() {
       project.invoice,
       project.company,
       project.taxRate,
+      project.prepaidTaxAmount,
+      calculated.profit,
+      calculated.grossMargin.toFixed(2),
+      calculated.untaxedProfitRate.toFixed(2),
       project.notes
     ].map(csvCell).join(',')
   })
@@ -1143,7 +1611,7 @@ function exportCsv() {
   showToast('CSV 文件已导出')
 }
 
-async function importJsonFile(file) {
+async function importLegacyJsonFile(file) {
   try {
     const parsed = JSON.parse(await file.text())
     const source = Array.isArray(parsed) ? parsed : parsed.projects
@@ -1179,7 +1647,7 @@ function clearAllProjects() {
     showToast('当前没有可清空的数据')
     return
   }
-  if (!confirm('确定清空全部项目和结款明细吗？此操作无法撤销，建议先导出备份。')) return
+  if (!confirm('确定清空全部项目和结款明细吗？此操作无法撤销，建议先导出 Excel。')) return
 
   state.projects = []
   state.settlements = []
@@ -1209,19 +1677,48 @@ projectDialog.addEventListener('click', (event) => {
 })
 
 document.querySelector('#laborCostButton').addEventListener('click', () => openCostDialog('labor', { mode: 'draft' }))
+document.querySelector('#paidAmountButton').addEventListener('click', () => openCostDialog('payment', { mode: 'draft' }))
 document.querySelector('#materialCostButton').addEventListener('click', () => openCostDialog('material', { mode: 'draft' }))
 document.querySelector('#otherCostButton').addEventListener('click', () => openCostDialog('other', { mode: 'draft' }))
+document.querySelector('#managementFeeButton').addEventListener('click', () => openManagementFeeDialog({ mode: 'draft' }))
+managementFeeForm.addEventListener('submit', (event) => {
+  event.preventDefault()
+  saveManagementFee(true)
+})
+document.querySelector('#resetManagementFeeButton').addEventListener('click', () => saveManagementFee(false))
+document.querySelector('#closeManagementFeeDialogButton').addEventListener('click', closeManagementFeeDialog)
+document.querySelector('#finishManagementFeeDialogButton').addEventListener('click', closeManagementFeeDialog)
+managementFeeDialog.addEventListener('click', (event) => {
+  if (event.target === managementFeeDialog) closeManagementFeeDialog()
+})
+managementFeeDialog.addEventListener('close', () => {
+  state.managementContext = null
+})
 costItemForm.addEventListener('submit', handleCostItemSubmit)
 cancelCostEditButton.addEventListener('click', resetCostItemEditor)
 document.querySelector('#closeCostDialogButton').addEventListener('click', closeCostDialog)
 document.querySelector('#finishCostDialogButton').addEventListener('click', closeCostDialog)
+laborDurationForm.addEventListener('submit', handleLaborDurationSubmit)
+cancelLaborDurationEditButton.addEventListener('click', resetLaborDurationEditor)
+document.querySelector('#closeLaborDurationDialogButton').addEventListener('click', closeLaborDurationDialog)
+document.querySelector('#finishLaborDurationDialogButton').addEventListener('click', closeLaborDurationDialog)
+laborDurationDialog.addEventListener('click', (event) => {
+  if (event.target === laborDurationDialog) closeLaborDurationDialog()
+})
+laborDurationDialog.addEventListener('close', () => {
+  state.laborDurationPersonId = null
+  state.editingLaborDurationId = null
+})
 costDialog.addEventListener('click', (event) => {
   if (event.target === costDialog) closeCostDialog()
 })
 costDialog.addEventListener('close', () => {
+  closeLaborDurationDialog()
   state.costType = null
   state.costContext = null
   state.editingCostItemId = null
+  state.laborDurationPersonId = null
+  state.editingLaborDurationId = null
 })
 
 const closeDetailDialog = () => detailDialog.close()
@@ -1256,14 +1753,12 @@ yearResetButton.addEventListener('click', () => {
   renderSummary()
   renderTable()
 })
-document.querySelector('#exportJsonButton').addEventListener('click', exportJson)
-document.querySelector('#importJsonButton').addEventListener('click', () => importFileInput.click())
+document.querySelector('#exportExcelButton').addEventListener('click', exportExcel)
+document.querySelector('#importExcelButton').addEventListener('click', () => importFileInput.click())
 importFileInput.addEventListener('change', () => {
   const [file] = importFileInput.files
-  if (file) importJsonFile(file)
+  if (file) importExcelFile(file)
 })
-document.querySelector('#exportCsvButton').addEventListener('click', exportCsv)
-document.querySelector('#printButton').addEventListener('click', () => window.print())
 document.querySelector('#clearAllButton').addEventListener('click', clearAllProjects)
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -1298,3 +1793,375 @@ saveProjects()
 saveSettlements()
 render()
 syncDraftCostDisplays()
+
+
+const EXCEL_XML_NAMESPACE = 'urn:schemas-microsoft-com:office:spreadsheet'
+
+function excelEscape(value) {
+  return toText(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
+function excelAttribute(value) {
+  return excelEscape(value).replaceAll('"', '&quot;')
+}
+
+function excelCell(value) {
+  const isNumber = typeof value === 'number' && Number.isFinite(value)
+  const type = isNumber ? 'Number' : 'String'
+  const content = isNumber ? String(value) : excelEscape(value)
+  return `<Cell><Data ss:Type="${type}">${content}</Data></Cell>`
+}
+
+function excelRow(values) {
+  return `<Row>${values.map(excelCell).join('')}</Row>`
+}
+
+function excelWorksheet(name, headers, rows) {
+  return `<Worksheet ss:Name="${excelAttribute(name)}"><Table>${excelRow(headers)}${rows.map(excelRow).join('')}</Table></Worksheet>`
+}
+
+function createExcelWorkbook() {
+  const projectHeaders = [
+    'id', 'projectDate', 'serial', 'projectName', 'contractAmount', 'paidAmount',
+    'warrantyPeriod', 'invoice', 'company', 'taxRate', 'notes', 'createdAt', 'updatedAt',
+    'unpaidAmount', 'untaxedAmount', 'laborCost', 'materialCost', 'otherCost',
+    'totalCost', 'costRatio', 'balance', 'managementFeeAmount', 'managementFeeManual',
+    'managementFeeConfigured', 'prepaidTaxAmount', 'managementFee', 'profit', 'grossMargin',
+    'untaxedProfitRate'  ]
+  const projectRows = state.projects.map((project) => {
+    const calculated = calculateProject(project)
+    return [
+      project.id, project.projectDate, project.serial, project.projectName, project.contractAmount,
+      project.paidAmount, project.warrantyPeriod, project.invoice, project.company, project.taxRate,
+      project.notes, project.createdAt, project.updatedAt, calculated.unpaidAmount,
+      calculated.untaxedAmount, project.laborCost, project.materialCost, project.otherCost,
+      calculated.totalCost, calculated.costRatio, calculated.balance, project.managementFeeAmount,
+      project.managementFeeManual, project.managementFeeConfigured, project.prepaidTaxAmount,
+      calculated.managementFeeAmount, calculated.profit, calculated.grossMargin, calculated.untaxedProfitRate
+    ]
+  })
+  const laborRows = []
+  const durationRows = []
+  const materialRows = []
+  const otherRows = []
+  const paymentRows = []
+  state.projects.forEach((project) => {
+    project.laborDetails.forEach((item) => {
+      laborRows.push([project.id, item.id, item.name, item.unitPrice])
+      ;(item.durationEntries || []).forEach((entry) => {
+        durationRows.push([project.id, item.id, entry.id, entry.registrationDate, entry.days])
+      })
+    })
+    project.materialDetails.forEach((item) => {
+      materialRows.push([project.id, item.id, item.product, item.pickupQuantity, item.unitPrice, item.usedQuantity, item.remainingQuantity])
+    })
+    project.otherDetails.forEach((item) => {
+      const details = item.details?.length ? item.details : [{ category: item.category, amount: item.amount }]
+      details.forEach((detail) => {
+        otherRows.push([project.id, item.id, item.expenseDate, detail.category, detail.amount, item.payer, item.note])
+      })
+    })
+    project.paymentDetails.forEach((item) => {
+      paymentRows.push([project.id, item.id, item.paymentDate, item.amount])
+    })
+  })
+  const settlementRows = state.settlements.map((settlement) => [
+    settlement.id, settlement.amount, settlement.settlementDate, settlement.createdAt, settlement.updatedAt,
+    settlement.source, settlement.note
+  ])
+  const worksheets = [
+    excelWorksheet('备份信息', ['version', 'exportedAt'], [[6, new Date().toISOString()]]),
+    excelWorksheet('项目汇总', projectHeaders, projectRows),
+    excelWorksheet('人工明细', ['projectId', 'laborId', 'name', 'unitPrice'], laborRows),
+    excelWorksheet('工期登记', ['projectId', 'laborId', 'id', 'registrationDate', 'days'], durationRows),
+    excelWorksheet('材料明细', ['projectId', 'id', 'product', 'pickupQuantity', 'unitPrice', 'usedQuantity', 'remainingQuantity'], materialRows),
+    excelWorksheet('其它费用', ['projectId', 'id', 'expenseDate', 'detailCategory', 'detailAmount', 'payer', 'note'], otherRows),
+    excelWorksheet('付款明细', ['projectId', 'id', 'paymentDate', 'amount'], paymentRows),
+    excelWorksheet('结款明细', ['id', 'amount', 'settlementDate', 'createdAt', 'updatedAt', 'source', 'note'], settlementRows)
+  ]
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<?mso-application progid="Excel.Sheet"?>',
+    `<Workbook xmlns="${EXCEL_XML_NAMESPACE}" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="${EXCEL_XML_NAMESPACE}" xmlns:html="http://www.w3.org/TR/REC-html40">`,
+    worksheets.join(''),
+    '</Workbook>'
+  ].join('')
+}
+
+function excelSheetRows(document, sheetName) {
+  const worksheets = Array.from(document.getElementsByTagName('*'))
+    .filter((element) => element.localName === 'Worksheet')
+  const worksheet = worksheets.find((element) => (
+    element.getAttributeNS(EXCEL_XML_NAMESPACE, 'Name')
+      || element.getAttribute('ss:Name')
+      || element.getAttribute('Name')
+  ) === sheetName)
+  if (!worksheet) return []
+  const table = Array.from(worksheet.getElementsByTagName('*'))
+    .find((element) => element.localName === 'Table')
+  if (!table) return []
+  return Array.from(table.children)
+    .filter((element) => element.localName === 'Row')
+    .map((row) => Array.from(row.children)
+      .filter((cell) => cell.localName === 'Cell')
+      .map((cell) => {
+        const data = Array.from(cell.children).find((element) => element.localName === 'Data')
+        return data ? data.textContent : ''
+      }))
+}
+
+function excelValue(row, index) {
+  return row[index] == null ? '' : row[index]
+}
+
+function parseExcelWorkbook(text) {
+  const document = new DOMParser().parseFromString(text, 'application/xml')
+  if (document.getElementsByTagName('parsererror').length > 0) {
+    throw new Error('Excel 文件格式无法识别')
+  }
+  const projectRows = excelSheetRows(document, '项目汇总')
+  if (projectRows.length === 0) throw new Error('Excel 文件中没有项目汇总工作表')
+  const projectHasManagementColumns = projectRows[0]?.includes('managementFeeConfigured')
+
+  const laborByProject = new Map()
+  const durationByLabor = new Map()
+  excelSheetRows(document, '工期登记').slice(1).forEach((row) => {
+    const laborId = excelValue(row, 1)
+    if (!laborId) return
+    const entries = durationByLabor.get(laborId) || []
+    entries.push({
+      id: excelValue(row, 2) || createId(),
+      registrationDate: excelValue(row, 3),
+      days: excelValue(row, 4)
+    })
+    durationByLabor.set(laborId, entries)
+  })
+  excelSheetRows(document, '人工明细').slice(1).forEach((row) => {
+    const projectId = excelValue(row, 0)
+    if (!projectId) return
+    const items = laborByProject.get(projectId) || []
+    const laborId = excelValue(row, 1) || createId()
+    items.push({
+      id: laborId,
+      name: excelValue(row, 2),
+      unitPrice: excelValue(row, 3),
+      durationEntries: durationByLabor.get(laborId) || []
+    })
+    laborByProject.set(projectId, items)
+  })
+
+  const materialByProject = new Map()
+  const materialSheetRows = excelSheetRows(document, '材料明细')
+  const materialHasPickupColumn = materialSheetRows[0]?.includes('pickupQuantity')
+  materialSheetRows.slice(1).forEach((row) => {
+    const projectId = excelValue(row, 0)
+    if (!projectId) return
+    const items = materialByProject.get(projectId) || []
+    items.push({
+      id: excelValue(row, 1) || createId(),
+      product: excelValue(row, 2),
+      pickupQuantity: materialHasPickupColumn ? excelValue(row, 3) : 0,
+      unitPrice: excelValue(row, materialHasPickupColumn ? 4 : 3),
+      usedQuantity: excelValue(row, materialHasPickupColumn ? 5 : 4),
+      remainingQuantity: excelValue(row, materialHasPickupColumn ? 6 : 5)
+    })
+    materialByProject.set(projectId, items)
+  })
+
+  const otherByProject = new Map()
+  const otherSheetRows = excelSheetRows(document, '其它费用')
+  const otherHasDetailsColumn = otherSheetRows[0]?.includes('detailCategory')
+  otherSheetRows.slice(1).forEach((row) => {
+    const projectId = excelValue(row, 0)
+    if (!projectId) return
+    const items = otherByProject.get(projectId) || []
+    const itemId = excelValue(row, 1) || createId()
+    if (otherHasDetailsColumn) {
+      let item = items.find((entry) => entry.id === itemId)
+      if (!item) {
+        item = {
+          id: itemId,
+          expenseDate: excelValue(row, 2),
+          details: [],
+          payer: excelValue(row, 5),
+          note: excelValue(row, 6)
+        }
+        items.push(item)
+      }
+      item.details.push({ category: excelValue(row, 3), amount: excelValue(row, 4) })
+    } else {
+      items.push({
+        id: itemId,
+        category: excelValue(row, 2),
+        expenseDate: excelValue(row, 3),
+        amount: excelValue(row, 4)
+      })
+    }
+    otherByProject.set(projectId, items)
+  })
+
+  const paymentByProject = new Map()
+  const paymentSheetRows = excelSheetRows(document, '付款明细')
+  paymentSheetRows.slice(1).forEach((row) => {
+    const projectId = excelValue(row, 0)
+    if (!projectId) return
+    const items = paymentByProject.get(projectId) || []
+    items.push({
+      id: excelValue(row, 1) || createId(),
+      paymentDate: excelValue(row, 2),
+      amount: excelValue(row, 3)
+    })
+    paymentByProject.set(projectId, items)
+  })
+
+  const projectRowsData = projectRows.slice(1).filter((row) => row.some((value) => toText(value).trim()))
+  const projects = projectRowsData.map((row) => {
+    const id = excelValue(row, 0) || createId()
+    return normalizeProject({
+      id,
+      projectDate: excelValue(row, 1),
+      serial: excelValue(row, 2),
+      projectName: excelValue(row, 3),
+      contractAmount: excelValue(row, 4),
+      paidAmount: excelValue(row, 5),
+      warrantyPeriod: excelValue(row, 6),
+      invoice: excelValue(row, 7),
+      company: excelValue(row, 8),
+      taxRate: excelValue(row, 9),
+      notes: excelValue(row, 10),
+      createdAt: excelValue(row, 11),
+      updatedAt: excelValue(row, 12),
+      ...(projectHasManagementColumns ? {
+        managementFeeAmount: excelValue(row, 21),
+        managementFeeManual: parseBoolean(excelValue(row, 22)),
+        managementFeeConfigured: parseBoolean(excelValue(row, 23), true),
+        prepaidTaxAmount: excelValue(row, 24)
+      } : {}),
+      laborDetails: laborByProject.get(id) || [],
+      ...(materialSheetRows.length > 1 ? { materialDetails: materialByProject.get(id) || [] } : {}),
+      ...(otherSheetRows.length > 1 ? { otherDetails: otherByProject.get(id) || [] } : {}),
+      ...(paymentByProject.has(id) ? { paymentDetails: paymentByProject.get(id) } : {})
+    })
+  }).filter((project) => project.serial && project.projectName)
+
+  if (projectRowsData.length > 0 && projects.length === 0) {
+    throw new Error('Excel 中的项目数据格式不正确')
+  }
+  const settlements = excelSheetRows(document, '结款明细').slice(1)
+    .filter((row) => row.some((value) => toText(value).trim()))
+    .map((row) => normalizeSettlement({
+      id: excelValue(row, 0),
+      amount: excelValue(row, 1),
+      settlementDate: excelValue(row, 2),
+      createdAt: excelValue(row, 3),
+      updatedAt: excelValue(row, 4),
+      source: excelValue(row, 5),
+      note: excelValue(row, 6)
+    }))
+  return { projects, settlements }
+}
+
+async function importExcelFile(file) {
+  try {
+    const text = await file.text()
+    const trimmed = text.trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      await importLegacyJsonFile(file)
+      return
+    }
+    const { projects, settlements } = parseExcelWorkbook(text)
+    if ((state.projects.length > 0 || state.settlements.length > 0)
+      && !confirm(`导入将替换当前 ${state.projects.length} 条项目和 ${state.settlements.length} 条结款明细，是否继续？`)) return
+
+    state.projects = projects
+    state.settlements = settlements
+    state.yearFilter = ''
+    state.query = ''
+    searchInput.value = ''
+    saveProjects()
+    saveSettlements()
+    resetEditor()
+    render()
+    showToast(`已导入 Excel：${projects.length} 条项目和 ${settlements.length} 条结款明细`)
+  } catch (error) {
+    console.error('导入 Excel 失败', error)
+    showToast(`Excel 导入失败：${error.message}`, true)
+  } finally {
+    importFileInput.value = ''
+  }
+}
+
+
+function createOtherDetailsField(field) {
+  const label = document.createElement('label')
+  label.className = 'field field-full other-details-field'
+  const title = document.createElement('span')
+  title.textContent = `${field.label} *`
+  const list = document.createElement('div')
+  list.className = 'other-detail-editor'
+  const addButton = document.createElement('button')
+  addButton.type = 'button'
+  addButton.className = 'button button-secondary other-detail-add'
+  addButton.textContent = '新增费用类别'
+  addButton.addEventListener('click', () => appendOtherDetailRow(list))
+  label.append(title, list, addButton)
+  appendOtherDetailRow(list)
+  return label
+}
+
+function appendOtherDetailRow(list, detail = {}) {
+  const row = document.createElement('div')
+  row.className = 'other-detail-row'
+  const category = document.createElement('input')
+  category.name = 'otherDetailCategory'
+  category.type = 'text'
+  category.maxLength = 100
+  category.required = true
+  category.placeholder = '费用类别，如餐饮'
+  category.value = detail.category || ''
+  category.dataset.detailCategory = 'true'
+  const amount = document.createElement('input')
+  amount.name = 'otherDetailAmount'
+  amount.type = 'number'
+  amount.min = '0'
+  amount.step = '0.01'
+  amount.inputMode = 'decimal'
+  amount.required = true
+  amount.placeholder = '金额'
+  amount.value = detail.amount == null ? '' : detail.amount
+  amount.dataset.detailAmount = 'true'
+  const removeButton = document.createElement('button')
+  removeButton.type = 'button'
+  removeButton.className = 'row-button delete'
+  removeButton.textContent = '删除'
+  removeButton.addEventListener('click', () => {
+    if (list.children.length === 1) {
+      category.value = ''
+      amount.value = ''
+      return
+    }
+    row.remove()
+  })
+  row.append(category, amount, removeButton)
+  list.append(row)
+}
+
+function renderOtherDetailsEditor(details) {
+  const list = costItemFields.querySelector('.other-detail-editor')
+  if (!list) return
+  list.replaceChildren()
+  const source = Array.isArray(details) && details.length > 0 ? details : [{}]
+  source.forEach((detail) => appendOtherDetailRow(list, detail))
+}
+
+function collectOtherDetails() {
+  const list = costItemFields.querySelector('.other-detail-editor')
+  if (!list) return []
+  return Array.from(list.children).map((row) => ({
+    category: row.querySelector('[data-detail-category]')?.value.trim() || '',
+    amount: row.querySelector('[data-detail-amount]')?.value || 0
+  })).filter((detail) => detail.category || toNumber(detail.amount) > 0)
+}

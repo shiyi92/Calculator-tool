@@ -154,8 +154,60 @@ h2 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.summary-module {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: #f8fafb;
+}
+
+.summary-module h3 {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.summary-module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-module[aria-labelledby="summaryProfitTitle"] .summary-card:first-child {
+  grid-column: 1 / -1;
+}
+
+.summary-module[aria-labelledby="summaryAmountsTitle"] .summary-card:nth-child(-n + 2) {
+  background: #eef8f4;
+}
+
+.summary-module[aria-labelledby="summaryAmountsTitle"] .summary-card:nth-child(n + 3):nth-child(-n + 4) {
+  background: #f5f8fc;
+}
+
+.summary-module[aria-labelledby="summaryAmountsTitle"] .summary-card:nth-child(n + 5) {
+  background: #fff7e8;
+}
+
+.summary-module[aria-labelledby="summaryCostsTitle"] .summary-card:nth-child(-n + 4) {
+  background: #f5f8fc;
+}
+
+.summary-module[aria-labelledby="summaryCostsTitle"] .summary-card:nth-child(n + 5) {
+  background: #dce6f1;
+}
+
+.summary-module[aria-labelledby="summaryProfitTitle"] .summary-card:first-child {
+  background: #eef8f4;
+}
+
+.summary-module[aria-labelledby="summaryProfitTitle"] .summary-card:nth-child(n + 2) {
+  background: #f5f8fc;
 }
 
 .summary-card {
@@ -373,7 +425,7 @@ textarea:focus {
 
 table {
   width: 100%;
-  min-width: 1700px;
+  min-width: 2100px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -501,7 +553,7 @@ tbody tr:hover {
 }
 
 @media (max-width: 980px) {
-  .summary-grid,
+  .summary-module-grid,
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -530,6 +582,7 @@ tbody tr:hover {
   }
 
   .summary-grid {
+    grid-template-columns: 1fr;
     gap: 9px;
   }
 
@@ -542,6 +595,7 @@ tbody tr:hover {
   }
 
   .form-grid,
+  .summary-module-grid,
   .calculation-preview {
     grid-template-columns: 1fr;
   }
@@ -898,6 +952,7 @@ h2 {
 
 .summary-grid {
   flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1000,6 +1055,10 @@ td {
   .summary-section {
     padding: 14px;
   }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {
@@ -1083,6 +1142,10 @@ td {
 
 .cost-dialog {
   width: min(980px, calc(100vw - 32px));
+}
+
+.management-fee-dialog {
+  width: min(620px, calc(100vw - 32px));
 }
 
 .detail-dialog {
@@ -1246,6 +1309,7 @@ body:has(dialog[open]) {
 
 @media (max-width: 700px) {
   .cost-dialog,
+  .management-fee-dialog,
   .detail-dialog {
     width: calc(100vw - 16px);
   }
@@ -1285,6 +1349,8 @@ body:has(dialog[open]) {
 
 @media print {
   .cost-dialog,
+  .management-fee-dialog,
+  .labor-duration-dialog,
   .detail-dialog {
     display: none !important;
   }
@@ -1325,30 +1391,64 @@ body:has(dialog[open]) {
   font-weight: 700;
 }
 
+.labor-duration-dialog,
 .settlement-dialog {
   width: min(760px, calc(100vw - 32px));
 }
 
+.labor-duration-fields,
 .settlement-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
+.labor-duration-table,
 .settlement-table {
   min-width: 520px;
 }
 
 @media (max-width: 700px) {
+  .labor-duration-dialog,
   .settlement-dialog {
     width: calc(100vw - 16px);
   }
 
+  .labor-duration-fields,
   .settlement-fields {
     grid-template-columns: 1fr;
   }
 
+  .labor-duration-table,
   .settlement-table {
     min-width: 0;
+  }
+}
+
+
+.other-details-field {
+  gap: 10px;
+}
+
+.other-detail-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.other-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.other-detail-add {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+@media (max-width: 700px) {
+  .other-detail-row {
+    grid-template-columns: minmax(0, 1fr) minmax(100px, 1fr) auto;
   }
 }
