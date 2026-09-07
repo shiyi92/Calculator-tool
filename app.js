@@ -1874,7 +1874,7 @@ function createExcelWorkbook() {
   ])
   const worksheets = [
     excelWorksheet('备份信息', ['version', 'exportedAt'], [[6, new Date().toISOString()]]),
-    excelWorksheet('项目汇总', projectHeaders, projectRows),
+    excelWorksheet('项目列表', projectHeaders, projectRows),
     excelWorksheet('人工明细', ['projectId', 'laborId', 'name', 'unitPrice'], laborRows),
     excelWorksheet('工期登记', ['projectId', 'laborId', 'id', 'registrationDate', 'days'], durationRows),
     excelWorksheet('材料明细', ['projectId', 'id', 'product', 'pickupQuantity', 'unitPrice', 'usedQuantity', 'remainingQuantity'], materialRows),
@@ -1922,8 +1922,10 @@ function parseExcelWorkbook(text) {
   if (document.getElementsByTagName('parsererror').length > 0) {
     throw new Error('Excel 文件格式无法识别')
   }
-  const projectRows = excelSheetRows(document, '项目汇总')
-  if (projectRows.length === 0) throw new Error('Excel 文件中没有项目汇总工作表')
+  const projectListRows = excelSheetRows(document, '项目列表')
+  const legacyProjectRows = excelSheetRows(document, '项目汇总')
+  const projectRows = projectListRows.length > 0 ? projectListRows : legacyProjectRows
+  if (projectRows.length === 0) throw new Error('Excel 文件中没有项目列表工作表')
   const projectHasManagementColumns = projectRows[0]?.includes('managementFeeConfigured')
 
   const laborByProject = new Map()
