@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = 'calculator-tool-projects-v1'
 const SETTLEMENT_STORAGE_KEY = 'calculator-tool-settlements-v1'
+const DICTIONARY_STORAGE_KEY = 'calculator-tool-dictionaries-v1'
 const moneyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
   currency: 'CNY',
@@ -73,6 +74,14 @@ const MATERIAL_PRODUCTS = [
   '屋美特底漆', '屋美特表层1216', '屋美特表层1211', '固锈剂', '聚脲', '稀释剂'
 ]
 const COMPANIES = ['长沙凯德', '苏州德莎']
+const DEFAULT_DICTIONARIES = {
+  companies: [...COMPANIES],
+  materialProducts: [...MATERIAL_PRODUCTS]
+}
+const DICTIONARY_CONFIG = [
+  { key: 'companies', label: '签约公司', placeholder: '新增公司名称' },
+  { key: 'materialProducts', label: '材料产品', placeholder: '新增材料产品' }
+]
 
 const COST_CONFIG = {
   labor: {

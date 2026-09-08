@@ -133,7 +133,10 @@
       <div class="section-heading records-heading">
         <div>
           <p class="section-kicker">RECORDS</p>
-          <h2 id="recordsTitle">项目列表</h2>
+          <div class="records-title-row">
+            <h2 id="recordsTitle">项目列表</h2>
+            <button id="openDictionaryDialogButton" class="button button-secondary" type="button">配置</button>
+          </div>
         </div>
         <div class="records-actions">
           <div class="keyword-search">
@@ -268,8 +271,6 @@
             <span>签约公司</span>
             <select name="company">
               <option value="">请选择签约公司</option>
-              <option value="长沙凯德">长沙凯德</option>
-              <option value="苏州德莎">苏州德莎</option>
             </select>
           </label>
           <label class="field">
@@ -299,6 +300,23 @@
           <button id="cancelFormButton" class="button button-secondary" type="button">取消</button>
         </div>
       </form>
+    </div>
+  </dialog>
+
+  <dialog id="dictionaryDialog" class="project-dialog dictionary-dialog" aria-labelledby="dictionaryDialogTitle">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">DICTIONARY CONFIG</p>
+          <h2 id="dictionaryDialogTitle">下拉选项配置</h2>
+        </div>
+        <button id="closeDictionaryDialogButton" class="dialog-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="field-hint dictionary-dialog-hint">新增或删除项目表单中的下拉选项。删除选项不会清除已有项目中的历史值。</p>
+      <div id="dictionaryContent" class="dictionary-content"></div>
+      <div class="dialog-footer">
+        <button id="finishDictionaryDialogButton" class="button button-primary" type="button">完成</button>
+      </div>
     </div>
   </dialog>
 
