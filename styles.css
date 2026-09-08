@@ -1437,9 +1437,16 @@ body:has(dialog[open]) {
 
 .labor-duration-entry-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1fr) auto;
+  grid-template-columns: auto minmax(150px, 1fr) auto minmax(120px, 1fr) auto;
   align-items: center;
   gap: 8px;
+}
+
+.labor-duration-entry-label {
+  color: #40514c;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .labor-duration-entry-add {
@@ -1449,7 +1456,12 @@ body:has(dialog[open]) {
 
 @media (max-width: 700px) {
   .labor-duration-entry-row {
-    grid-template-columns: minmax(0, 1fr) minmax(100px, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    gap: 5px;
+  }
+
+  .labor-duration-entry-label {
+    font-size: 11px;
   }
 }
 

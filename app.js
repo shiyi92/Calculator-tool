@@ -1039,7 +1039,7 @@ function getCostFallbackDate() {
 }
 
 function createLaborDurationEntriesField(field) {
-  const label = document.createElement('label')
+  const label = document.createElement('div')
   label.className = 'field field-full labor-duration-details-field'
   const title = document.createElement('span')
   title.textContent = `${field.label} *`
@@ -1059,12 +1059,18 @@ function appendLaborDurationEntryRow(list, entry = {}) {
   const row = document.createElement('div')
   row.className = 'labor-duration-entry-row'
   row.dataset.durationId = toText(entry.id)
+  const dateTitle = document.createElement('span')
+  dateTitle.className = 'labor-duration-entry-label'
+  dateTitle.textContent = '登记日期'
   const date = document.createElement('input')
   date.name = 'registrationDate'
   date.type = 'date'
   date.required = true
   date.value = entry.registrationDate || getCostFallbackDate()
   date.dataset.durationDate = 'true'
+  const daysTitle = document.createElement('span')
+  daysTitle.className = 'labor-duration-entry-label'
+  daysTitle.textContent = '工期（天）'
   const days = document.createElement('input')
   days.name = 'days'
   days.type = 'number'
@@ -1072,7 +1078,6 @@ function appendLaborDurationEntryRow(list, entry = {}) {
   days.step = '0.01'
   days.inputMode = 'decimal'
   days.required = true
-  days.placeholder = '工期（天）'
   days.value = entry.days == null ? '' : entry.days
   days.dataset.durationDays = 'true'
   const removeButton = document.createElement('button')
@@ -1088,7 +1093,7 @@ function appendLaborDurationEntryRow(list, entry = {}) {
     }
     row.remove()
   })
-  row.append(date, days, removeButton)
+  row.append(dateTitle, date, daysTitle, days, removeButton)
   list.append(row)
 }
 
