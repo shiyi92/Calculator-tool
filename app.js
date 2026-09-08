@@ -21,6 +21,11 @@ const form = document.querySelector('#projectForm')
 const formTitle = document.querySelector('#formTitle')
 const submitButton = document.querySelector('#submitButton')
 const projectDialog = document.querySelector('#projectDialog')
+const dictionaryDialog = document.querySelector('#dictionaryDialog')
+const dictionaryContent = document.querySelector('#dictionaryContent')
+const openDictionaryDialogButton = document.querySelector('#openDictionaryDialogButton')
+const closeDictionaryDialogButton = document.querySelector('#closeDictionaryDialogButton')
+const finishDictionaryDialogButton = document.querySelector('#finishDictionaryDialogButton')
 const addProjectButton = document.querySelector('#addProjectButton')
 const closeDialogButton = document.querySelector('#closeDialogButton')
 const cancelFormButton = document.querySelector('#cancelFormButton')
@@ -75,7 +80,11 @@ const MATERIAL_PRODUCTS = [
 ]
 const COMPANIES = ['长沙凯德', '苏州德莎']
 const DEFAULT_DICTIONARIES = {
-  companies: [...COMPANIES],
+  companies: COMPANIES.map((value) => ({
+    value,
+    label: value,
+    managementFeeRate: value === COMPANIES[0] ? 0.04 : 0
+  })),
   materialProducts: [...MATERIAL_PRODUCTS]
 }
 const DICTIONARY_CONFIG = [
@@ -105,7 +114,7 @@ const COST_CONFIG = {
     detailKey: 'materialDetails',
     amountKey: 'materialCost',
     fields: [
-      { name: 'product', label: '产品', type: 'select', options: MATERIAL_PRODUCTS, required: true },
+      { name: 'product', label: '产品', type: 'select', options: () => getDictionaryValues('materialProducts'), required: true },
       { name: 'pickupQuantity', label: '拿货', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'usedQuantity', label: '使用', type: 'number', min: 0, step: 0.01, required: true },
@@ -168,6 +177,7 @@ const COST_CONFIG = {
 }
 
 const state = {
+  dictionaries: loadDictionaries(),
   projects: loadProjects(),
   settlements: loadSettlements(),
   editingId: null,
@@ -199,6 +209,63 @@ function toNumber(value) {
 
 function toText(value) {
   return value == null ? '' : String(value)
+}
+
+function normalizeDictionaryValues(values, fallback) {
+  const source = Array.isArray(values) ? values : fallback
+  return [...new Set(source.map((value) => toText(value).trim()).filter(Boolean))]
+}
+
+function normalizeCompanyEntry(entry) {
+  const source = entry && typeof entry === 'object' ? entry : { value: entry }
+  const value = toText(source.value || source.label).trim()
+  if (!value) return null
+  const label = toText(source.label || value).trim() || value
+  const managementFeeRate = source.managementFeeRate == null || source.managementFeeRate === ''
+    ? (value === COMPANIES[0] ? 0.04 : 0)
+    : Math.max(0, toNumber(source.managementFeeRate))
+  return { value, label, managementFeeRate }
+}
+
+function normalizeCompanyValues(values, fallback) {
+  const source = Array.isArray(values) ? values : fallback
+  const entries = source.map(normalizeCompanyEntry).filter(Boolean)
+  const seen = new Set()
+  return entries.filter((entry) => {
+    if (seen.has(entry.value)) return false
+    seen.add(entry.value)
+    return true
+  })
+}
+
+function loadDictionaries() {
+  try {
+    const saved = localStorage.getItem(DICTIONARY_STORAGE_KEY)
+    const parsed = saved ? JSON.parse(saved) : {}
+    return {
+      companies: normalizeCompanyValues(parsed.companies, DEFAULT_DICTIONARIES.companies),
+      materialProducts: normalizeDictionaryValues(parsed.materialProducts, DEFAULT_DICTIONARIES.materialProducts)
+    }
+  } catch (error) {
+    console.error('读取字典数据失败', error)
+    return {
+      companies: DEFAULT_DICTIONARIES.companies.map((company) => ({ ...company })),
+      materialProducts: [...DEFAULT_DICTIONARIES.materialProducts]
+    }
+  }
+}
+
+function saveDictionaries() {
+  try {
+    localStorage.setItem(DICTIONARY_STORAGE_KEY, JSON.stringify(state.dictionaries))
+  } catch (error) {
+    console.error('保存字典数据失败', error)
+    showToast('字典数据保存失败', true)
+  }
+}
+
+function getDictionaryValues(key) {
+  return state.dictionaries[key] || []
 }
 
 function getToday() {
@@ -243,7 +310,9 @@ function createEmptyManagement() {
 }
 
 function getDefaultManagementFeeRate(company) {
-  return toText(company).trim() === COMPANIES[0] ? 0.04 : 0
+  const value = toText(company).trim()
+  const entry = getDictionaryValues('companies').find((item) => item.value === value)
+  return entry ? entry.managementFeeRate : 0
 }
 
 function parseBoolean(value, fallback = false) {
@@ -550,6 +619,27 @@ function getControl(name) {
   return form.elements.namedItem(name)
 }
 
+function renderCompanyOptions(selectedValue = '') {
+  const companyControl = getControl('company')
+  if (!companyControl) return
+  const value = selectedValue || companyControl.value
+  companyControl.replaceChildren()
+  const placeholder = document.createElement('option')
+  placeholder.value = ''
+  placeholder.textContent = '请选择签约公司'
+  companyControl.append(placeholder)
+  getDictionaryValues('companies').forEach((company) => {
+    const option = document.createElement('option')
+    option.value = company.value
+    option.textContent = company.label
+    companyControl.append(option)
+  })
+  if (value && !Array.from(companyControl.options).some((option) => option.value === value)) {
+    ensureCompanyOption(value)
+  }
+  companyControl.value = value
+}
+
 function ensureCompanyOption(company) {
   const value = toText(company).trim()
   const companyControl = getControl('company')
@@ -558,6 +648,153 @@ function ensureCompanyOption(company) {
   option.value = value
   option.textContent = `${value}（历史值）`
   companyControl.append(option)
+}
+
+function parseManagementFeeRatePercent(value) {
+  const text = toText(value).trim()
+  if (!text) return 0
+  const rate = Number(text)
+  return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate / 100 : null
+}
+
+function updateCompanyManagementFeeRate(value, input) {
+  const managementFeeRate = parseManagementFeeRatePercent(input.value)
+  if (managementFeeRate === null) {
+    showToast('管理费率请输入 0 到 100 之间的数字', true)
+    input.focus()
+    return
+  }
+  state.dictionaries.companies = getDictionaryValues('companies').map((company) => (
+    company.value === value ? { ...company, managementFeeRate } : company
+  ))
+  saveDictionaries()
+  renderDictionaryDialog()
+  showToast('管理费率已保存')
+}
+
+function addDictionaryValue(key, input, rateInput) {
+  const value = input.value.trim()
+  if (!value) {
+    showToast('请输入字典值', true)
+    input.focus()
+    return
+  }
+  const managementFeeRate = key === 'companies'
+    ? parseManagementFeeRatePercent(rateInput?.value)
+    : null
+  if (key === 'companies' && managementFeeRate === null) {
+    showToast('管理费率请输入 0 到 100 之间的数字', true)
+    rateInput.focus()
+    return
+  }
+  const values = getDictionaryValues(key)
+  const exists = key === 'companies'
+    ? values.some((item) => item.value === value)
+    : values.includes(value)
+  if (exists) {
+    showToast('该字典值已存在', true)
+    input.focus()
+    return
+  }
+  const nextValue = key === 'companies'
+    ? { value, label: value, managementFeeRate }
+    : value
+  state.dictionaries[key] = [...values, nextValue]
+  saveDictionaries()
+  renderDictionaryDialog()
+  renderCompanyOptions()
+  showToast('字典值已新增')
+}
+
+function deleteDictionaryValue(key, value) {
+  const displayValue = key === 'companies' ? value.label : value
+  if (!confirm(`确定删除字典值“${displayValue}”吗？已有项目中的该值会保留为历史值。`)) return
+  state.dictionaries[key] = getDictionaryValues(key).filter((item) => (
+    key === 'companies' ? item.value !== value.value : item !== value
+  ))
+  saveDictionaries()
+  renderDictionaryDialog()
+  renderCompanyOptions()
+  showToast('字典值已删除')
+}
+
+function renderDictionaryDialog() {
+  dictionaryContent.replaceChildren()
+  DICTIONARY_CONFIG.forEach(({ key, label, placeholder }) => {
+    const section = document.createElement('section')
+    section.className = 'dictionary-section'
+    const heading = document.createElement('h3')
+    heading.textContent = label
+    const addRow = document.createElement('div')
+    const isCompanyDictionary = key === 'companies'
+    addRow.className = isCompanyDictionary
+      ? 'dictionary-add-row dictionary-company-add-row'
+      : 'dictionary-add-row'
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.maxLength = 100
+    input.placeholder = placeholder
+    const rateInput = isCompanyDictionary ? document.createElement('input') : null
+    if (rateInput) {
+      rateInput.type = 'number'
+      rateInput.min = '0'
+      rateInput.max = '100'
+      rateInput.step = '0.01'
+      rateInput.placeholder = '管理费率（%）'
+    }
+    const addButton = document.createElement('button')
+    addButton.type = 'button'
+    addButton.className = 'button button-secondary'
+    addButton.textContent = '新增'
+    addButton.addEventListener('click', () => addDictionaryValue(key, input, rateInput))
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') addDictionaryValue(key, input, rateInput)
+    })
+    addRow.append(input, ...(rateInput ? [rateInput] : []), addButton)
+
+    const list = document.createElement('div')
+    list.className = 'dictionary-value-list'
+    getDictionaryValues(key).forEach((value) => {
+      const item = document.createElement('div')
+      item.className = 'dictionary-value-item'
+      const text = document.createElement('span')
+      text.textContent = isCompanyDictionary ? value.label : value
+      let rateInput = null
+      let saveButton = null
+      if (isCompanyDictionary) {
+        rateInput = document.createElement('input')
+        rateInput.className = 'dictionary-rate-input'
+        rateInput.type = 'number'
+        rateInput.min = '0'
+        rateInput.max = '100'
+        rateInput.step = '0.01'
+        rateInput.value = (value.managementFeeRate * 100).toFixed(2)
+        saveButton = document.createElement('button')
+        saveButton.type = 'button'
+        saveButton.className = 'row-button'
+        saveButton.textContent = '保存'
+        saveButton.addEventListener('click', () => updateCompanyManagementFeeRate(value.value, rateInput))
+      }
+      const deleteButton = document.createElement('button')
+      deleteButton.type = 'button'
+      deleteButton.className = 'row-button delete'
+      deleteButton.textContent = '删除'
+      deleteButton.addEventListener('click', () => deleteDictionaryValue(key, value))
+      item.append(text, ...(rateInput ? [rateInput, saveButton] : []), deleteButton)
+      list.append(item)
+    })
+    section.append(heading, addRow, list)
+    dictionaryContent.append(section)
+  })
+}
+
+function openDictionaryDialog() {
+  renderDictionaryDialog()
+  dictionaryDialog.showModal()
+}
+
+function closeDictionaryDialog() {
+  if (dictionaryDialog.open) dictionaryDialog.close()
 }
 
 function getProjectYear(project) {
@@ -938,6 +1175,7 @@ function resetEditor() {
 
 function openCreateDialog() {
   resetEditor()
+  renderCompanyOptions()
   getControl('projectDate').value = getToday()
   updateCalculationPreview()
   projectDialog.showModal()
@@ -964,7 +1202,7 @@ function startEdit(id) {
   }
   formTitle.textContent = '编辑项目'
   submitButton.textContent = '保存修改'
-  ensureCompanyOption(project.company)
+  renderCompanyOptions(project.company)
 
   Object.entries(project).forEach(([name, value]) => {
     const control = getControl(name)
@@ -1145,7 +1383,8 @@ function createCostField(field) {
     placeholder.value = ''
     placeholder.textContent = '请选择产品'
     input.append(placeholder)
-    field.options.forEach((optionValue) => {
+    const options = typeof field.options === 'function' ? field.options() : field.options
+    options.forEach((optionValue) => {
       const option = document.createElement('option')
       option.value = optionValue
       option.textContent = optionValue
@@ -1837,6 +2076,12 @@ function applyKeywordSearch() {
 
 form.addEventListener('submit', handleSubmit)
 form.addEventListener('input', updateCalculationPreview)
+openDictionaryDialogButton.addEventListener('click', openDictionaryDialog)
+closeDictionaryDialogButton.addEventListener('click', closeDictionaryDialog)
+finishDictionaryDialogButton.addEventListener('click', closeDictionaryDialog)
+dictionaryDialog.addEventListener('click', (event) => {
+  if (event.target === dictionaryDialog) closeDictionaryDialog()
+})
 addProjectButton.addEventListener('click', openCreateDialog)
 closeDialogButton.addEventListener('click', () => projectDialog.close())
 cancelFormButton.addEventListener('click', () => projectDialog.close())
@@ -1961,7 +2206,9 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 
 saveProjects()
 saveSettlements()
+saveDictionaries()
 render()
+renderCompanyOptions()
 syncDraftCostDisplays()
 
 

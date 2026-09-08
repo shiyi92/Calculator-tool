@@ -404,6 +404,18 @@ textarea:focus {
   align-items: flex-end;
 }
 
+.records-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.records-title-row .button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .search-box {
   width: min(380px, 100%);
 }
@@ -1138,6 +1150,70 @@ td {
 .row-button.detail {
   color: #315c8a;
   background: #e9f1fa;
+}
+
+.dictionary-dialog {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.dictionary-dialog-hint {
+  margin-bottom: 18px;
+}
+
+.dictionary-content {
+  display: grid;
+  gap: 18px;
+}
+
+.dictionary-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: #fafcfc;
+}
+
+.dictionary-section h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.dictionary-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dictionary-company-add-row {
+  grid-template-columns: minmax(0, 1fr) 170px auto;
+}
+
+.dictionary-value-list {
+  display: grid;
+  gap: 6px;
+}
+
+.dictionary-value-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px 6px 11px;
+  background: #fff;
+}
+
+.dictionary-value-item span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.dictionary-rate-input {
+  width: 110px;
+  flex: 0 0 110px;
 }
 
 .cost-dialog {
