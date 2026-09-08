@@ -82,8 +82,7 @@ const COST_CONFIG = {
     fields: [
       { name: 'name', label: '姓名', type: 'text', maxlength: 100, required: true },
       { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true },
-      { name: 'registrationDate', label: '登记日期', type: 'date', required: true },
-      { name: 'days', label: '工期（天）', type: 'number', min: 0, step: 0.01, required: true }
+      { name: 'durationEntries', label: '工期登记', type: 'labor-duration-details', required: true }
     ],
     columns: [
       { label: '姓名', value: (item) => item.name || '-' },
@@ -759,7 +758,10 @@ function createInvoiceCell(project) {
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'cost-link-button'
-  button.textContent = project.invoiceDetails.length > 0 ? formatMoney(project.invoiceAmount) : (project.invoice || '-')
+  const invoiceRatio = project.contractAmount > 0
+    ? project.invoiceAmount / project.contractAmount * 100
+    : 0
+  button.textContent = formatPercent(invoiceRatio)
   button.title = '维护开票信息'
   button.addEventListener('click', () => openCostDialog('invoice', { mode: 'project', projectId: project.id }))
   cell.append(button)
@@ -1036,7 +1038,80 @@ function getCostFallbackDate() {
   return getControl('projectDate').value || getToday()
 }
 
+function createLaborDurationEntriesField(field) {
+  const label = document.createElement('label')
+  label.className = 'field field-full labor-duration-details-field'
+  const title = document.createElement('span')
+  title.textContent = `${field.label} *`
+  const list = document.createElement('div')
+  list.className = 'labor-duration-entry-editor'
+  const addButton = document.createElement('button')
+  addButton.type = 'button'
+  addButton.className = 'button button-secondary labor-duration-entry-add'
+  addButton.textContent = '新增日期和工期'
+  addButton.addEventListener('click', () => appendLaborDurationEntryRow(list))
+  label.append(title, list, addButton)
+  appendLaborDurationEntryRow(list)
+  return label
+}
+
+function appendLaborDurationEntryRow(list, entry = {}) {
+  const row = document.createElement('div')
+  row.className = 'labor-duration-entry-row'
+  row.dataset.durationId = toText(entry.id)
+  const date = document.createElement('input')
+  date.name = 'registrationDate'
+  date.type = 'date'
+  date.required = true
+  date.value = entry.registrationDate || getCostFallbackDate()
+  date.dataset.durationDate = 'true'
+  const days = document.createElement('input')
+  days.name = 'days'
+  days.type = 'number'
+  days.min = '0'
+  days.step = '0.01'
+  days.inputMode = 'decimal'
+  days.required = true
+  days.placeholder = '工期（天）'
+  days.value = entry.days == null ? '' : entry.days
+  days.dataset.durationDays = 'true'
+  const removeButton = document.createElement('button')
+  removeButton.type = 'button'
+  removeButton.className = 'row-button delete'
+  removeButton.textContent = '删除'
+  removeButton.addEventListener('click', () => {
+    if (list.children.length === 1) {
+      date.value = getCostFallbackDate()
+      days.value = ''
+      row.dataset.durationId = ''
+      return
+    }
+    row.remove()
+  })
+  row.append(date, days, removeButton)
+  list.append(row)
+}
+
+function renderLaborDurationEntriesEditor(entries) {
+  const list = costItemFields.querySelector('.labor-duration-entry-editor')
+  if (!list) return
+  list.replaceChildren()
+  const source = Array.isArray(entries) && entries.length > 0 ? entries : [{}]
+  source.forEach((entry) => appendLaborDurationEntryRow(list, entry))
+}
+
+function collectLaborDurationEntries() {
+  const list = costItemFields.querySelector('.labor-duration-entry-editor')
+  if (!list) return []
+  return Array.from(list.children).map((row) => ({
+    id: row.dataset.durationId || '',
+    registrationDate: row.querySelector('[data-duration-date]')?.value || '',
+    days: row.querySelector('[data-duration-days]')?.value || ''
+  })).filter((entry) => entry.registrationDate || toNumber(entry.days) > 0)
+}
+
 function createCostField(field) {
+  if (field.type === 'labor-duration-details') return createLaborDurationEntriesField(field)
   if (field.type === 'other-details') return createOtherDetailsField(field)
   const label = document.createElement('label')
   label.className = 'field'
@@ -1073,11 +1148,11 @@ function resetCostItemEditor() {
   state.editingCostItemId = null
   costItemForm.reset()
   if (state.costType === 'other') renderOtherDetailsEditor([])
+  if (state.costType === 'labor') renderLaborDurationEntriesEditor([])
   saveCostItemButton.textContent = '新增明细'
   cancelCostEditButton.hidden = true
   const dateControl = costItemForm.elements.namedItem('expenseDate')
     || costItemForm.elements.namedItem('paymentDate')
-    || costItemForm.elements.namedItem('registrationDate')
     || costItemForm.elements.namedItem('invoiceDate')
   if (dateControl) dateControl.value = getCostFallbackDate()
 }
@@ -1205,8 +1280,13 @@ function editCostItem(id) {
     })
     renderOtherDetailsEditor(item.details)
   } else {
-    COST_CONFIG[state.costType].fields.forEach((field) => {
-      const control = costItemForm.elements.namedItem(field.name)
+    if (state.costType === 'labor') {
+      costItemForm.elements.namedItem('name').value = item.name || ''
+      costItemForm.elements.namedItem('unitPrice').value = item.unitPrice ?? ''
+      renderLaborDurationEntriesEditor(item.durationEntries)
+    } else {
+      COST_CONFIG[state.costType].fields.forEach((field) => {
+        const control = costItemForm.elements.namedItem(field.name)
       if (control) {
         if (field.name === 'product' && control.tagName === 'SELECT' && item.product
           && !Array.from(control.options).some((option) => option.value === item.product)) {
@@ -1215,15 +1295,11 @@ function editCostItem(id) {
           option.textContent = `${item.product}（历史值）`
           control.append(option)
         }
-        const firstDuration = item.durationEntries?.[0]
-        const value = state.costType === 'labor' && field.name === 'registrationDate'
-          ? (firstDuration?.registrationDate || getCostFallbackDate())
-          : state.costType === 'labor' && field.name === 'days'
-            ? (firstDuration?.days ?? 0)
-            : item[field.name]
+        const value = item[field.name]
         control.value = value ?? ''
-      }
-    })
+        }
+      })
+    }
   }
   saveCostItemButton.textContent = '保存修改'
   cancelCostEditButton.hidden = false
@@ -1256,17 +1332,11 @@ function handleCostItemSubmit(event) {
   const items = getActiveCostItems()
   const existing = items.find((item) => item.id === state.editingCostItemId)
   if (state.costType === 'labor') {
-    const durationEntries = Array.isArray(existing?.durationEntries)
-      ? existing.durationEntries.map((entry) => ({ ...entry }))
-      : []
-    const firstEntry = durationEntries[0]
-    const durationEntry = normalizeDurationEntry({
-      id: firstEntry?.id,
-      registrationDate: values.registrationDate,
-      days: values.days
-    }, getCostFallbackDate())
-    if (durationEntries.length > 0) durationEntries[0] = durationEntry
-    else durationEntries.push(durationEntry)
+    const durationEntries = collectLaborDurationEntries()
+    if (durationEntries.length === 0) {
+      showToast('请至少填写一条日期和工期', true)
+      return
+    }
     values.durationEntries = durationEntries
   }
   const costItem = normalizeCostItem(
