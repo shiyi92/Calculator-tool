@@ -170,7 +170,6 @@
               <th>管理费</th>
               <th>其它费用</th>
               <th>总费用</th>
-              <th>费用占比</th>
               <th>预估结余</th>
               <th>质保期</th>
               <th>开票</th>
@@ -258,10 +257,13 @@
             <span>质保期</span>
             <input name="warrantyPeriod" type="text" maxlength="50" placeholder="例如：2年">
           </label>
-          <label class="field">
+          <div class="field">
             <span>开票</span>
-            <input name="invoice" type="text" maxlength="100" placeholder="手动填写开票信息">
-          </label>
+            <button id="invoiceButton" class="cost-editor-button" type="button">
+              <strong id="invoiceDisplay">¥0.00</strong>
+              <small>点击维护开票信息</small>
+            </button>
+          </div>
           <label class="field">
             <span>签约公司</span>
             <select name="company">
