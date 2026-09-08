@@ -81,7 +81,9 @@ const COST_CONFIG = {
     amountKey: 'laborCost',
     fields: [
       { name: 'name', label: '姓名', type: 'text', maxlength: 100, required: true },
-      { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true }
+      { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true },
+      { name: 'registrationDate', label: '登记日期', type: 'date', required: true },
+      { name: 'days', label: '工期（天）', type: 'number', min: 0, step: 0.01, required: true }
     ],
     columns: [
       { label: '姓名', value: (item) => item.name || '-' },
@@ -126,6 +128,20 @@ const COST_CONFIG = {
       { label: '金额', value: (item) => formatMoney(getCostItemAmount('other', item)) },
       { label: '付款人', value: (item) => item.payer || '-' },
       { label: '备注', value: (item) => item.note || '-' }
+    ]
+  },
+  invoice: {
+    label: '开票',
+    detailKey: 'invoiceDetails',
+    amountKey: 'invoiceAmount',
+    fields: [
+      { name: 'invoiceDate', label: '开票时间', type: 'date', required: true },
+      { name: 'amount', label: '开票金额', type: 'number', min: 0, step: 0.01, required: true }
+    ],
+    columns: [
+      { label: '开票时间', value: (item) => item.invoiceDate || '-' },
+      { label: '开票金额', value: (item) => formatMoney(item.amount) },
+      { label: '开票占比', value: (item, project) => formatPercent(project?.contractAmount > 0 ? item.amount / project.contractAmount * 100 : 0) }
     ]
   },
   payment: {
@@ -205,7 +221,13 @@ function resolveProjectDate(project) {
 }
 
 function createEmptyDetails() {
-  return { laborDetails: [], materialDetails: [], otherDetails: [], paymentDetails: [] }
+  return {
+    laborDetails: [],
+    materialDetails: [],
+    otherDetails: [],
+    paymentDetails: [],
+    invoiceDetails: []
+  }
 }
 
 function createEmptyManagement() {
@@ -249,6 +271,7 @@ function cloneItems(items) {
 function getCostItemAmount(type, item) {
   if (type === 'labor') return getLaborDuration(item) * Math.max(0, toNumber(item.unitPrice))
   if (type === 'material') return Math.max(0, toNumber(item.unitPrice)) * Math.max(0, toNumber(item.usedQuantity))
+  if (type === 'invoice') return Math.max(0, toNumber(item.amount))
   if (type === 'payment') return Math.max(0, toNumber(item.amount))
   if (Array.isArray(item.details)) return item.details.reduce((total, detail) => total + Math.max(0, toNumber(detail.amount)), 0)
   return Math.max(0, toNumber(item.amount))
@@ -290,6 +313,13 @@ function normalizeCostItem(type, item, fallbackDate = getToday()) {
       unitPrice: Math.max(0, toNumber(item.unitPrice)),
       usedQuantity: Math.max(0, toNumber(item.usedQuantity ?? item.used)),
       remainingQuantity: Math.max(0, toNumber(item.remainingQuantity ?? item.remaining))
+    }
+  }
+  if (type === 'invoice') {
+    return {
+      id,
+      invoiceDate: isValidDateText(item.invoiceDate) ? item.invoiceDate : fallbackDate,
+      amount: Math.max(0, toNumber(item.amount))
     }
   }
   if (type === 'payment') {
@@ -349,6 +379,7 @@ function normalizeProject(source) {
   const materialDetails = normalizeCostDetails(project, 'material', projectDate)
   const otherDetails = normalizeCostDetails(project, 'other', projectDate)
   const paymentDetails = normalizeCostDetails(project, 'payment', projectDate)
+  const invoiceDetails = normalizeCostDetails(project, 'invoice', projectDate)
   const paidAmount = sumCostItems('payment', paymentDetails)
   const hasManagementFeeData = [
     'managementFeeAmount', 'managementFeeManual', 'managementFeeConfigured'
@@ -368,6 +399,8 @@ function normalizeProject(source) {
     materialDetails,
     otherDetails,
     paymentDetails,
+    invoiceDetails,
+    invoiceAmount: sumCostItems('invoice', invoiceDetails),
     laborCost: sumCostItems('labor', laborDetails),
     materialCost: sumCostItems('material', materialDetails),
     otherCost: sumCostItems('other', otherDetails),
@@ -718,6 +751,21 @@ function saveManagementFee(manual) {
   showToast(manual ? '管理费已保存' : '管理费已恢复默认')
 }
 
+function createInvoiceCell(project) {
+  const cell = document.createElement('td')
+  cell.dataset.label = '开票'
+  cell.className = 'money-cell'
+
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'cost-link-button'
+  button.textContent = project.invoiceDetails.length > 0 ? formatMoney(project.invoiceAmount) : (project.invoice || '-')
+  button.title = '维护开票信息'
+  button.addEventListener('click', () => openCostDialog('invoice', { mode: 'project', projectId: project.id }))
+  cell.append(button)
+  return cell
+}
+
 function createActionCell(project) {
   const cell = document.createElement('td')
   cell.dataset.label = '操作'
@@ -753,7 +801,7 @@ function renderTable() {
     const row = document.createElement('tr')
     row.className = 'empty-row'
     const cell = document.createElement('td')
-    cell.colSpan = 24
+    cell.colSpan = 23
     cell.textContent = state.query || state.yearFilter ? '没有找到匹配的项目' : '暂无项目，先录入第一条数据吧'
     row.append(cell)
     tableBody.append(row)
@@ -777,10 +825,9 @@ function renderTable() {
       createManagementFeeCell(project),
       createCostCell(project, 'other'),
       createCell('总费用', formatMoney(calculated.totalCost), 'money-cell'),
-      createCell('费用占比', formatPercent(calculated.costRatio), 'money-cell'),
       createCell('预估结余', formatMoney(calculated.balance), `money-cell ${calculated.balance < 0 ? 'negative-value' : 'positive-value'}`),
       createCell('质保期', project.warrantyPeriod || '-'),
-      createCell('开票', project.invoice || '-'),
+      createInvoiceCell(project),
       createCell('签约公司', project.company || '-'),
       createCell('税点', formatPercent(project.taxRate)),
       createCell('预交税费', formatMoney(project.prepaidTaxAmount), 'money-cell'),
