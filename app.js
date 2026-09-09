@@ -171,7 +171,8 @@ const COST_CONFIG = {
     ],
     columns: [
       { label: '付款日期', value: (item) => item.paymentDate || '-' },
-      { label: '付款金额', value: (item) => formatMoney(item.amount) }
+      { label: '付款金额', value: (item) => formatMoney(item.amount) },
+      { label: '付款比例', value: (item, project) => formatPercent(project?.contractAmount > 0 ? item.amount / project.contractAmount * 100 : 0) }
     ]
   }
 }
