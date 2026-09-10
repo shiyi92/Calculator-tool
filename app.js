@@ -16,6 +16,103 @@ const serialCollator = new Intl.Collator('zh-CN', {
   numeric: true,
   sensitivity: 'base'
 })
+const BALANCE_LABOR_START_DATE = '2022-01-01'
+const FORMULA_DESCRIPTIONS = {
+  untaxedAmount: '合同不含税金额 = 合同含税金额 ÷ (1 + 税点 ÷ 100)',
+  paidAmount: '已付款金额 = Σ付款明细金额',
+  unpaidAmount: '未付款金额 = 合同含税金额 − 已付款金额',
+  laborDuration: '汇总工期 = Σ工期登记天数',
+  laborCost: '人工费 = Σ(人员汇总工期 × 单价)',
+  laborItemAmount: '总计 = 汇总工期 × 单价',
+  materialCost: '材料费 = Σ(材料使用数量 × 单价)',
+  materialItemAmount: '使用金额 = 使用数量 × 单价',
+  otherCost: '其它费用 = Σ费用明细金额',
+  otherItemAmount: '金额 = Σ当前记录的费用明细金额',
+  managementFee: '管理费 = 手工设置金额；未手工设置时为合同含税金额 × 签约公司管理费率',
+  totalCost: '总费用 = 人工费 + 材料费 + 管理费 + 其它费用',
+  costRatio: '费用占比 = 总费用 ÷ 合同含税金额 × 100%',
+  estimatedBalance: '项目日期 ≤ 2021-12-31：预估结余 = 合同不含税金额 − 材料费 − 管理费 + 预交税费；项目日期 ≥ 2022-01-01：预估结余 = 合同不含税金额 − 人工费 − 材料费 − 管理费 + 预交税费',
+  invoiceAmount: '开票金额 = Σ开票明细金额',
+  invoiceRatio: '开票占比 = 开票金额 ÷ 合同含税金额 × 100%',
+  paymentRatio: '付款比例 = 付款金额 ÷ 合同含税金额 × 100%',
+  profit: '利润 = 合同不含税金额 − 总费用',
+  grossMargin: '毛利率（含税）= 利润 ÷ 合同含税金额 × 100%',
+  untaxedProfitRate: '利润率（不含税）= 利润 ÷ 合同不含税金额 × 100%',
+  summaryContract: '汇总合同含税金额 = Σ项目合同含税金额',
+  summaryUntaxed: '汇总不含税金额 = Σ项目合同不含税金额',
+  summaryPaid: '汇总已付款金额 = Σ项目已付款金额',
+  summaryUnpaid: '汇总未付款金额 = Σ项目未付款金额',
+  summarySettled: '已结款 = Σ结款明细金额',
+  summaryUnsettled: '未结款 = Σ项目预估结余 − 已结款',
+  summaryLabor: '汇总人工费 = Σ项目人工费',
+  summaryMaterial: '汇总材料费 = Σ项目材料费',
+  summaryOther: '汇总其它费用 = Σ项目其它费用',
+  summaryManagementFee: '汇总管理费 = Σ项目管理费',
+  summaryTotalCost: '汇总总费用 = Σ项目总费用',
+  summaryCostRatio: '汇总费用占比 = 汇总总费用 ÷ 汇总合同含税金额 × 100%',
+  summaryProfit: '汇总利润 = Σ项目利润',
+  summaryGrossMargin: '汇总毛利率（含税）= 汇总利润 ÷ 汇总合同含税金额 × 100%',
+  summaryUntaxedProfitRate: '汇总利润率（不含税）= 汇总利润 ÷ 汇总不含税金额 × 100%'
+}
+const STATIC_FORMULA_TARGETS = {
+  totalContract: 'summaryContract',
+  totalUntaxed: 'summaryUntaxed',
+  totalPaid: 'summaryPaid',
+  totalUnpaid: 'summaryUnpaid',
+  totalSettled: 'summarySettled',
+  totalUnsettled: 'summaryUnsettled',
+  totalLabor: 'summaryLabor',
+  totalMaterial: 'summaryMaterial',
+  totalOther: 'summaryOther',
+  totalManagementFee: 'summaryManagementFee',
+  totalCost: 'summaryTotalCost',
+  totalCostRatio: 'summaryCostRatio',
+  totalProfit: 'summaryProfit',
+  totalGrossMargin: 'summaryGrossMargin',
+  totalUntaxedProfitRate: 'summaryUntaxedProfitRate',
+  previewUnpaid: 'unpaidAmount',
+  previewUntaxed: 'untaxedAmount',
+  previewCost: 'totalCost',
+  previewCostRatio: 'costRatio',
+  previewBalance: 'estimatedBalance',
+  paidAmountDisplay: 'paidAmount',
+  laborCostDisplay: 'laborCost',
+  materialCostDisplay: 'materialCost',
+  managementFeeDisplay: 'managementFee',
+  otherCostDisplay: 'otherCost',
+  invoiceDisplay: 'invoiceAmount'
+}
+const TABLE_FORMULA_KEYS = {
+  '不含税金额': 'untaxedAmount',
+  '已付款金额': 'paidAmount',
+  '未付款金额': 'unpaidAmount',
+  '人工费': 'laborCost',
+  '材料费': 'materialCost',
+  '管理费': 'managementFee',
+  '其它费用': 'otherCost',
+  '总费用': 'totalCost',
+  '预估结余': 'estimatedBalance',
+  '开票': 'invoiceRatio',
+  '利润': 'profit',
+  '毛利率(含税)': 'grossMargin',
+  '利润率(不含税)': 'untaxedProfitRate'
+}
+const DETAIL_FORMULA_KEYS = {
+  '不含税金额': 'untaxedAmount',
+  '已付款金额': 'paidAmount',
+  '未付款金额': 'unpaidAmount',
+  '人工费': 'laborCost',
+  '材料费': 'materialCost',
+  '其它费用': 'otherCost',
+  '管理费': 'managementFee',
+  '项目总费用': 'totalCost',
+  '费用占比': 'costRatio',
+  '利润': 'profit',
+  '毛利率（含税）': 'grossMargin',
+  '利润率（不含税）': 'untaxedProfitRate',
+  '预估结余': 'estimatedBalance',
+  '开票': 'invoiceAmount'
+}
 
 const form = document.querySelector('#projectForm')
 const formTitle = document.querySelector('#formTitle')
@@ -104,9 +201,9 @@ const COST_CONFIG = {
     ],
     columns: [
       { label: '姓名', value: (item) => item.name || '-' },
-      { key: 'duration', label: '汇总工期', value: (item) => `${formatNumber(getLaborDuration(item))} 天` },
+      { key: 'duration', label: '汇总工期', formulaKey: 'laborDuration', value: (item) => `${formatNumber(getLaborDuration(item))} 天` },
       { label: '单价', value: (item) => formatMoney(item.unitPrice) },
-      { label: '总计', value: (item) => formatMoney(getCostItemAmount('labor', item)) }
+      { label: '总计', formulaKey: 'laborItemAmount', value: (item) => formatMoney(getCostItemAmount('labor', item)) }
     ]
   },
   material: {
@@ -126,7 +223,7 @@ const COST_CONFIG = {
       { label: '单价', value: (item) => formatMoney(item.unitPrice) },
       { label: '使用', value: (item) => formatNumber(item.usedQuantity) },
       { label: '剩余', value: (item) => formatNumber(item.remainingQuantity) },
-      { label: '使用金额', value: (item) => formatMoney(getCostItemAmount('material', item)) }
+      { label: '使用金额', formulaKey: 'materialItemAmount', value: (item) => formatMoney(getCostItemAmount('material', item)) }
     ]
   },
   other: {
@@ -142,7 +239,7 @@ const COST_CONFIG = {
     columns: [
       { label: '日期', value: (item) => item.expenseDate || '-' },
       { label: '明细', value: (item) => formatOtherDetails(item.details) },
-      { label: '金额', value: (item) => formatMoney(getCostItemAmount('other', item)) },
+      { label: '金额', formulaKey: 'otherItemAmount', value: (item) => formatMoney(getCostItemAmount('other', item)) },
       { label: '付款人', value: (item) => item.payer || '-' },
       { label: '备注', value: (item) => item.note || '-' }
     ]
@@ -158,7 +255,7 @@ const COST_CONFIG = {
     columns: [
       { label: '开票时间', value: (item) => item.invoiceDate || '-' },
       { label: '开票金额', value: (item) => formatMoney(item.amount) },
-      { label: '开票占比', value: (item, project) => formatPercent(project?.contractAmount > 0 ? item.amount / project.contractAmount * 100 : 0) }
+      { label: '开票占比', formulaKey: 'invoiceRatio', value: (item, project) => formatPercent(project?.contractAmount > 0 ? item.amount / project.contractAmount * 100 : 0) }
     ]
   },
   payment: {
@@ -172,7 +269,7 @@ const COST_CONFIG = {
     columns: [
       { label: '付款日期', value: (item) => item.paymentDate || '-' },
       { label: '付款金额', value: (item) => formatMoney(item.amount) },
-      { label: '付款比例', value: (item, project) => formatPercent(project?.contractAmount > 0 ? item.amount / project.contractAmount * 100 : 0) }
+      { label: '付款比例', formulaKey: 'paymentRatio', value: (item, project) => formatPercent(project?.contractAmount > 0 ? item.amount / project.contractAmount * 100 : 0) }
     ]
   }
 }
@@ -577,8 +674,10 @@ function calculateProject(project) {
     ? 0
     : project.managementFeeManual ? project.managementFeeAmount : defaultManagementFee
   const totalCost = project.laborCost + project.materialCost + project.otherCost + managementFeeAmount
-  const balance = project.contractAmount - totalCost
   const untaxedAmount = project.contractAmount / (1 + project.taxRate / 100)
+  const laborCostForBalance = project.projectDate >= BALANCE_LABOR_START_DATE ? project.laborCost : 0
+  const balance = untaxedAmount - laborCostForBalance - project.materialCost
+    - managementFeeAmount + project.prepaidTaxAmount
   const costRatio = project.contractAmount > 0 ? totalCost / project.contractAmount * 100 : 0
   const profit = untaxedAmount - totalCost
   const grossMargin = project.contractAmount > 0 ? profit / project.contractAmount * 100 : 0
@@ -614,6 +713,86 @@ function showToast(message, isError = false) {
   toast.classList.toggle('error', isError)
   toast.classList.add('visible')
   toastTimer = setTimeout(() => toast.classList.remove('visible'), 2600)
+}
+
+function getFormulaPopover() {
+  let popover = document.querySelector('#formulaPopover')
+  if (popover) return popover
+  popover = document.createElement('div')
+  popover.id = 'formulaPopover'
+  popover.className = 'formula-popover'
+  popover.setAttribute('role', 'tooltip')
+  popover.hidden = true
+  document.body.append(popover)
+  return popover
+}
+
+function hideFormulaPopover() {
+  const popover = document.querySelector('#formulaPopover')
+  if (popover) popover.hidden = true
+}
+
+function showFormulaPopover(button, formulaKey) {
+  const formula = FORMULA_DESCRIPTIONS[formulaKey]
+  if (!formula) return
+  const popover = getFormulaPopover()
+  popover.textContent = formula
+  popover.hidden = false
+
+  const buttonRect = button.getBoundingClientRect()
+  const gap = 8
+  const pagePadding = 12
+  let left = buttonRect.left + buttonRect.width / 2 - popover.offsetWidth / 2
+  left = Math.max(pagePadding, Math.min(left, window.innerWidth - popover.offsetWidth - pagePadding))
+  let top = buttonRect.bottom + gap
+  if (top + popover.offsetHeight > window.innerHeight - pagePadding) {
+    top = buttonRect.top - popover.offsetHeight - gap
+  }
+  popover.style.left = `${left}px`
+  popover.style.top = `${Math.max(pagePadding, top)}px`
+}
+
+function appendFormulaHelp(labelElement, formulaKey) {
+  const formula = FORMULA_DESCRIPTIONS[formulaKey]
+  if (!labelElement || !formula || labelElement.querySelector('.formula-help')) return
+  labelElement.classList.add('formula-label')
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'formula-help'
+  button.textContent = '?'
+  button.title = '查看计算公式'
+  button.setAttribute('aria-label', `查看计算公式：${formula}`)
+  button.addEventListener('click', (event) => {
+    event.stopPropagation()
+    const popover = getFormulaPopover()
+    if (!popover.hidden && popover.dataset.activeFormulaKey === formulaKey) {
+      hideFormulaPopover()
+      popover.dataset.activeFormulaKey = ''
+      return
+    }
+    popover.dataset.activeFormulaKey = formulaKey
+    showFormulaPopover(button, formulaKey)
+  })
+  labelElement.append(button)
+}
+
+function initializeFormulaHelp() {
+  Object.entries(STATIC_FORMULA_TARGETS).forEach(([outputId, formulaKey]) => {
+    const output = document.querySelector(`#${outputId}`)
+    const container = output?.closest('.summary-card') || output?.closest('.field') || output?.parentElement
+    appendFormulaHelp(container?.querySelector(':scope > span'), formulaKey)
+  })
+
+  document.querySelectorAll('.records-panel thead th').forEach((header) => {
+    appendFormulaHelp(header, TABLE_FORMULA_KEYS[header.textContent.trim()])
+  })
+
+  document.addEventListener('click', hideFormulaPopover)
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') hideFormulaPopover()
+  })
+  window.addEventListener('resize', hideFormulaPopover)
+  window.addEventListener('scroll', hideFormulaPopover, true)
 }
 
 function getControl(name) {
@@ -1430,6 +1609,7 @@ function createDetailTable(type, items, editable, project = null) {
   config.columns.forEach((column) => {
     const th = document.createElement('th')
     th.textContent = column.label
+    appendFormulaHelp(th, column.formulaKey)
     headRow.append(th)
   })
   if (editable) {
@@ -1748,6 +1928,7 @@ function createDetailInfo(label, value, className = '') {
   item.className = `detail-info-item ${className}`.trim()
   const term = document.createElement('dt')
   term.textContent = label
+  appendFormulaHelp(term, DETAIL_FORMULA_KEYS[label])
   const description = document.createElement('dd')
   description.textContent = value
   item.append(term, description)
@@ -2208,6 +2389,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 saveProjects()
 saveSettlements()
 saveDictionaries()
+initializeFormulaHelp()
 render()
 renderCompanyOptions()
 syncDraftCostDisplays()
