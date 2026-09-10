@@ -755,7 +755,6 @@ function showFormulaPopover(button, formulaKey) {
 function appendFormulaHelp(labelElement, formulaKey) {
   const formula = FORMULA_DESCRIPTIONS[formulaKey]
   if (!labelElement || !formula || labelElement.querySelector('.formula-help')) return
-  labelElement.classList.add('formula-label')
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'formula-help'
@@ -773,7 +772,16 @@ function appendFormulaHelp(labelElement, formulaKey) {
     popover.dataset.activeFormulaKey = formulaKey
     showFormulaPopover(button, formulaKey)
   })
-  labelElement.append(button)
+  if (labelElement.tagName === 'TH') {
+    const content = document.createElement('span')
+    content.className = 'formula-header-content'
+    content.append(...labelElement.childNodes)
+    content.append(button)
+    labelElement.append(content)
+  } else {
+    labelElement.classList.add('formula-label')
+    labelElement.append(button)
+  }
 }
 
 function initializeFormulaHelp() {
