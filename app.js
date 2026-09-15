@@ -3,14 +3,18 @@
 const STORAGE_KEY = 'calculator-tool-projects-v1'
 const SETTLEMENT_STORAGE_KEY = 'calculator-tool-settlements-v1'
 const DICTIONARY_STORAGE_KEY = 'calculator-tool-dictionaries-v1'
+const DICTIONARY_VERSION = 2
+const DEFAULT_MATERIAL_UNIT_PRICE = 10
+const NUMBER_INPUT_STEP = 0.00001
+const INPUT_FRACTION_DIGITS = 5
 const moneyFormatter = new Intl.NumberFormat('zh-CN', {
   style: 'currency',
   currency: 'CNY',
   minimumFractionDigits: 2,
-  maximumFractionDigits: 2
+  maximumFractionDigits: INPUT_FRACTION_DIGITS
 })
 const numberFormatter = new Intl.NumberFormat('zh-CN', {
-  maximumFractionDigits: 2
+  maximumFractionDigits: INPUT_FRACTION_DIGITS
 })
 const serialCollator = new Intl.Collator('zh-CN', {
   numeric: true,
@@ -182,7 +186,7 @@ const DEFAULT_DICTIONARIES = {
     label: value,
     managementFeeRate: value === COMPANIES[0] ? 0.04 : 0
   })),
-  materialProducts: [...MATERIAL_PRODUCTS]
+  materialProducts: MATERIAL_PRODUCTS.map((value) => ({ value, label: value, unitPrice: DEFAULT_MATERIAL_UNIT_PRICE }))
 }
 const DICTIONARY_CONFIG = [
   { key: 'companies', label: '签约公司', placeholder: '新增公司名称' },
@@ -196,7 +200,7 @@ const COST_CONFIG = {
     amountKey: 'laborCost',
     fields: [
       { name: 'name', label: '姓名', type: 'text', maxlength: 100, required: true },
-      { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true },
+      { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: NUMBER_INPUT_STEP, required: true },
       { name: 'durationEntries', label: '工期登记', type: 'labor-duration-details', required: true }
     ],
     columns: [
@@ -212,10 +216,10 @@ const COST_CONFIG = {
     amountKey: 'materialCost',
     fields: [
       { name: 'product', label: '产品', type: 'select', options: () => getDictionaryValues('materialProducts'), required: true },
-      { name: 'pickupQuantity', label: '拿货', type: 'number', min: 0, step: 0.01, required: true },
-      { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: 0.01, required: true },
-      { name: 'usedQuantity', label: '使用', type: 'number', min: 0, step: 0.01, required: true },
-      { name: 'remainingQuantity', label: '剩余', type: 'number', min: 0, step: 0.01, required: true }
+      { name: 'pickupQuantity', label: '拿货', type: 'number', min: 0, step: NUMBER_INPUT_STEP, required: true },
+      { name: 'unitPrice', label: '单价', type: 'number', min: 0, step: NUMBER_INPUT_STEP, required: true },
+      { name: 'usedQuantity', label: '使用', type: 'number', min: 0, step: NUMBER_INPUT_STEP, required: true },
+      { name: 'remainingQuantity', label: '剩余', type: 'number', min: 0, step: NUMBER_INPUT_STEP, readOnly: true, required: true }
     ],
     columns: [
       { label: '产品', value: (item) => item.product || '-' },
@@ -250,7 +254,7 @@ const COST_CONFIG = {
     amountKey: 'invoiceAmount',
     fields: [
       { name: 'invoiceDate', label: '开票时间', type: 'date', required: true },
-      { name: 'amount', label: '开票金额', type: 'number', min: 0, step: 0.01, required: true }
+      { name: 'amount', label: '开票金额', type: 'number', min: 0, step: NUMBER_INPUT_STEP, required: true }
     ],
     columns: [
       { label: '开票时间', value: (item) => item.invoiceDate || '-' },
@@ -264,7 +268,7 @@ const COST_CONFIG = {
     amountKey: 'paidAmount',
     fields: [
       { name: 'paymentDate', label: '付款日期', type: 'date', required: true },
-      { name: 'amount', label: '付款金额', type: 'number', min: 0, step: 0.01, required: true }
+      { name: 'amount', label: '付款金额', type: 'number', min: 0, step: NUMBER_INPUT_STEP, required: true }
     ],
     columns: [
       { label: '付款日期', value: (item) => item.paymentDate || '-' },
@@ -309,9 +313,26 @@ function toText(value) {
   return value == null ? '' : String(value)
 }
 
-function normalizeDictionaryValues(values, fallback) {
+function normalizeMaterialProductEntry(entry) {
+  const source = entry && typeof entry === 'object' ? entry : { value: entry }
+  const value = toText(source.value || source.label).trim()
+  if (!value) return null
+  const label = toText(source.label || value).trim() || value
+  const unitPrice = source.unitPrice == null || source.unitPrice === ''
+    ? DEFAULT_MATERIAL_UNIT_PRICE
+    : Math.max(0, toNumber(source.unitPrice))
+  return { value, label, unitPrice }
+}
+
+function normalizeMaterialProductValues(values, fallback) {
   const source = Array.isArray(values) ? values : fallback
-  return [...new Set(source.map((value) => toText(value).trim()).filter(Boolean))]
+  const entries = source.map(normalizeMaterialProductEntry).filter(Boolean)
+  const seen = new Set()
+  return entries.filter((entry) => {
+    if (seen.has(entry.value)) return false
+    seen.add(entry.value)
+    return true
+  })
 }
 
 function normalizeCompanyEntry(entry) {
@@ -340,22 +361,31 @@ function loadDictionaries() {
   try {
     const saved = localStorage.getItem(DICTIONARY_STORAGE_KEY)
     const parsed = saved ? JSON.parse(saved) : {}
+    const materialProducts = normalizeMaterialProductValues(parsed.materialProducts, DEFAULT_DICTIONARIES.materialProducts)
+    const isLegacyDictionary = !Number.isInteger(parsed.version) || parsed.version < DICTIONARY_VERSION
     return {
       companies: normalizeCompanyValues(parsed.companies, DEFAULT_DICTIONARIES.companies),
-      materialProducts: normalizeDictionaryValues(parsed.materialProducts, DEFAULT_DICTIONARIES.materialProducts)
+      materialProducts: isLegacyDictionary
+        ? materialProducts.map((product) => product.unitPrice === 0
+          ? { ...product, unitPrice: DEFAULT_MATERIAL_UNIT_PRICE }
+          : product)
+        : materialProducts
     }
   } catch (error) {
     console.error('读取字典数据失败', error)
     return {
       companies: DEFAULT_DICTIONARIES.companies.map((company) => ({ ...company })),
-      materialProducts: [...DEFAULT_DICTIONARIES.materialProducts]
+      materialProducts: DEFAULT_DICTIONARIES.materialProducts.map((product) => ({ ...product }))
     }
   }
 }
 
 function saveDictionaries() {
   try {
-    localStorage.setItem(DICTIONARY_STORAGE_KEY, JSON.stringify(state.dictionaries))
+    localStorage.setItem(DICTIONARY_STORAGE_KEY, JSON.stringify({
+      ...state.dictionaries,
+      version: DICTIONARY_VERSION
+    }))
   } catch (error) {
     console.error('保存字典数据失败', error)
     showToast('字典数据保存失败', true)
@@ -411,6 +441,16 @@ function getDefaultManagementFeeRate(company) {
   const value = toText(company).trim()
   const entry = getDictionaryValues('companies').find((item) => item.value === value)
   return entry ? entry.managementFeeRate : 0
+}
+
+function getDefaultMaterialUnitPrice(product) {
+  const value = toText(product).trim()
+  const entry = getDictionaryValues('materialProducts').find((item) => item.value === value)
+  return entry ? entry.unitPrice : 0
+}
+
+function formatInputNumber(value) {
+  return toNumber(value).toFixed(INPUT_FRACTION_DIGITS)
 }
 
 function parseBoolean(value, fallback = false) {
@@ -704,7 +744,7 @@ function formatNumber(value) {
 }
 
 function formatPercent(value) {
-  return `${toNumber(value).toFixed(2)}%`
+  return `${toNumber(value).toFixed(INPUT_FRACTION_DIGITS)}%`
 }
 
 function showToast(message, isError = false) {
@@ -860,7 +900,29 @@ function updateCompanyManagementFeeRate(value, input) {
   showToast('管理费率已保存')
 }
 
-function addDictionaryValue(key, input, rateInput) {
+function parseMaterialUnitPrice(value) {
+  const text = toText(value).trim()
+  if (!text) return DEFAULT_MATERIAL_UNIT_PRICE
+  const unitPrice = Number(text)
+  return Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : null
+}
+
+function updateMaterialProductUnitPrice(value, input) {
+  const unitPrice = parseMaterialUnitPrice(input.value)
+  if (unitPrice === null) {
+    showToast('产品单价请输入大于或等于 0 的数字', true)
+    input.focus()
+    return
+  }
+  state.dictionaries.materialProducts = getDictionaryValues('materialProducts').map((product) => (
+    product.value === value ? { ...product, unitPrice } : product
+  ))
+  saveDictionaries()
+  renderDictionaryDialog()
+  showToast('产品单价已保存')
+}
+
+function addDictionaryValue(key, input, numericInput) {
   const value = input.value.trim()
   if (!value) {
     showToast('请输入字典值', true)
@@ -868,17 +930,23 @@ function addDictionaryValue(key, input, rateInput) {
     return
   }
   const managementFeeRate = key === 'companies'
-    ? parseManagementFeeRatePercent(rateInput?.value)
+    ? parseManagementFeeRatePercent(numericInput?.value)
+    : null
+  const unitPrice = key === 'materialProducts'
+    ? parseMaterialUnitPrice(numericInput?.value)
     : null
   if (key === 'companies' && managementFeeRate === null) {
     showToast('管理费率请输入 0 到 100 之间的数字', true)
-    rateInput.focus()
+    numericInput.focus()
+    return
+  }
+  if (key === 'materialProducts' && unitPrice === null) {
+    showToast('产品单价请输入大于或等于 0 的数字', true)
+    numericInput.focus()
     return
   }
   const values = getDictionaryValues(key)
-  const exists = key === 'companies'
-    ? values.some((item) => item.value === value)
-    : values.includes(value)
+  const exists = values.some((item) => item.value === value)
   if (exists) {
     showToast('该字典值已存在', true)
     input.focus()
@@ -886,7 +954,7 @@ function addDictionaryValue(key, input, rateInput) {
   }
   const nextValue = key === 'companies'
     ? { value, label: value, managementFeeRate }
-    : value
+    : { value, label: value, unitPrice }
   state.dictionaries[key] = [...values, nextValue]
   saveDictionaries()
   renderDictionaryDialog()
@@ -895,11 +963,9 @@ function addDictionaryValue(key, input, rateInput) {
 }
 
 function deleteDictionaryValue(key, value) {
-  const displayValue = key === 'companies' ? value.label : value
+  const displayValue = value.label
   if (!confirm(`确定删除字典值“${displayValue}”吗？已有项目中的该值会保留为历史值。`)) return
-  state.dictionaries[key] = getDictionaryValues(key).filter((item) => (
-    key === 'companies' ? item.value !== value.value : item !== value
-  ))
+  state.dictionaries[key] = getDictionaryValues(key).filter((item) => item.value !== value.value)
   saveDictionaries()
   renderDictionaryDialog()
   renderCompanyOptions()
@@ -915,20 +981,21 @@ function renderDictionaryDialog() {
     heading.textContent = label
     const addRow = document.createElement('div')
     const isCompanyDictionary = key === 'companies'
-    addRow.className = isCompanyDictionary
-      ? 'dictionary-add-row dictionary-company-add-row'
-      : 'dictionary-add-row'
+    const isProductDictionary = key === 'materialProducts'
+    addRow.className = 'dictionary-add-row dictionary-number-add-row'
     const input = document.createElement('input')
     input.type = 'text'
     input.maxLength = 100
     input.placeholder = placeholder
-    const rateInput = isCompanyDictionary ? document.createElement('input') : null
+    const rateInput = (isCompanyDictionary || isProductDictionary) ? document.createElement('input') : null
     if (rateInput) {
       rateInput.type = 'number'
       rateInput.min = '0'
-      rateInput.max = '100'
-      rateInput.step = '0.01'
-      rateInput.placeholder = '管理费率（%）'
+      if (isCompanyDictionary) rateInput.max = '100'
+      rateInput.step = String(NUMBER_INPUT_STEP)
+      rateInput.inputMode = 'decimal'
+      rateInput.placeholder = isCompanyDictionary ? '管理费率（%）' : '产品单价'
+      if (isProductDictionary) rateInput.value = formatInputNumber(DEFAULT_MATERIAL_UNIT_PRICE)
     }
     const addButton = document.createElement('button')
     addButton.type = 'button'
@@ -946,22 +1013,28 @@ function renderDictionaryDialog() {
       const item = document.createElement('div')
       item.className = 'dictionary-value-item'
       const text = document.createElement('span')
-      text.textContent = isCompanyDictionary ? value.label : value
+      text.textContent = value.label
       let rateInput = null
       let saveButton = null
-      if (isCompanyDictionary) {
+      if (isCompanyDictionary || isProductDictionary) {
         rateInput = document.createElement('input')
         rateInput.className = 'dictionary-rate-input'
         rateInput.type = 'number'
         rateInput.min = '0'
-        rateInput.max = '100'
-        rateInput.step = '0.01'
-        rateInput.value = (value.managementFeeRate * 100).toFixed(2)
+        if (isCompanyDictionary) rateInput.max = '100'
+        rateInput.step = String(NUMBER_INPUT_STEP)
+        rateInput.inputMode = 'decimal'
+        rateInput.value = formatInputNumber(isCompanyDictionary ? value.managementFeeRate * 100 : value.unitPrice)
+        rateInput.setAttribute('aria-label', `${value.label}${isCompanyDictionary ? '管理费率' : '单价'}`)
+        rateInput.title = isCompanyDictionary ? '管理费率（%）' : '产品单价'
         saveButton = document.createElement('button')
         saveButton.type = 'button'
         saveButton.className = 'row-button'
         saveButton.textContent = '保存'
-        saveButton.addEventListener('click', () => updateCompanyManagementFeeRate(value.value, rateInput))
+        saveButton.addEventListener('click', () => {
+          if (isCompanyDictionary) updateCompanyManagementFeeRate(value.value, rateInput)
+          else updateMaterialProductUnitPrice(value.value, rateInput)
+        })
       }
       const deleteButton = document.createElement('button')
       deleteButton.type = 'button'
@@ -1171,7 +1244,7 @@ function openManagementFeeDialog(context) {
   managementFeeDialogHint.textContent = project.managementFeeManual
     ? '当前为手工金额，保存后会覆盖公司默认值。'
     : (project.managementFeeConfigured ? '当前按公司默认规则自动计算。' : '历史项目默认不计管理费，点击恢复默认后启用自动计算。')
-  managementFeeAmountInput.value = calculated.managementFeeAmount.toFixed(2)
+  managementFeeAmountInput.value = formatInputNumber(calculated.managementFeeAmount)
   managementFeeDialog.showModal()
 }
 
@@ -1510,7 +1583,7 @@ function appendLaborDurationEntryRow(list, entry = {}) {
   days.name = 'days'
   days.type = 'number'
   days.min = '0'
-  days.step = '0.01'
+  days.step = String(NUMBER_INPUT_STEP)
   days.inputMode = 'decimal'
   days.required = true
   days.value = entry.days == null ? '' : entry.days
@@ -1566,6 +1639,7 @@ function createCostField(field) {
   if (field.min != null) input.min = String(field.min)
   if (field.step != null) input.step = String(field.step)
   if (field.maxlength != null) input.maxLength = field.maxlength
+  if (field.readOnly) input.readOnly = true
   if (field.type === 'select') {
     const placeholder = document.createElement('option')
     placeholder.value = ''
@@ -1574,8 +1648,11 @@ function createCostField(field) {
     const options = typeof field.options === 'function' ? field.options() : field.options
     options.forEach((optionValue) => {
       const option = document.createElement('option')
-      option.value = optionValue
-      option.textContent = optionValue
+      const normalizedOption = optionValue && typeof optionValue === 'object'
+        ? optionValue
+        : { value: optionValue, label: optionValue }
+      option.value = normalizedOption.value
+      option.textContent = normalizedOption.label
       input.append(option)
     })
   }
@@ -1583,6 +1660,36 @@ function createCostField(field) {
   if (field.type === 'number') input.inputMode = 'decimal'
   label.append(title, input)
   return label
+}
+
+function bindMaterialUnitPriceDefault() {
+  if (state.costType !== 'material') return
+  const productInput = costItemForm.elements.namedItem('product')
+  const unitPriceInput = costItemForm.elements.namedItem('unitPrice')
+  if (!productInput || !unitPriceInput) return
+  productInput.addEventListener('change', () => {
+    unitPriceInput.value = formatInputNumber(getDefaultMaterialUnitPrice(productInput.value))
+  })
+}
+
+function syncMaterialRemainingQuantity() {
+  if (state.costType !== 'material') return
+  const pickupInput = costItemForm.elements.namedItem('pickupQuantity')
+  const usedInput = costItemForm.elements.namedItem('usedQuantity')
+  const remainingInput = costItemForm.elements.namedItem('remainingQuantity')
+  if (!pickupInput || !usedInput || !remainingInput) return
+  const remaining = Math.max(0, toNumber(pickupInput.value) - toNumber(usedInput.value))
+  remainingInput.value = formatInputNumber(remaining)
+}
+
+function bindMaterialRemainingQuantity() {
+  if (state.costType !== 'material') return
+  const pickupInput = costItemForm.elements.namedItem('pickupQuantity')
+  const usedInput = costItemForm.elements.namedItem('usedQuantity')
+  if (!pickupInput || !usedInput) return
+  pickupInput.addEventListener('input', syncMaterialRemainingQuantity)
+  usedInput.addEventListener('input', syncMaterialRemainingQuantity)
+  syncMaterialRemainingQuantity()
 }
 
 function resetCostItemEditor() {
@@ -1596,6 +1703,7 @@ function resetCostItemEditor() {
     || costItemForm.elements.namedItem('paymentDate')
     || costItemForm.elements.namedItem('invoiceDate')
   if (dateControl) dateControl.value = getCostFallbackDate()
+  syncMaterialRemainingQuantity()
 }
 
 function getCostContextProject() {
@@ -1705,7 +1813,9 @@ function openCostDialog(type, context) {
   }
 
   costItemFields.replaceChildren(...config.fields.map(createCostField))
+  bindMaterialUnitPriceDefault()
   resetCostItemEditor()
+  bindMaterialRemainingQuantity()
   renderCostDetailList()
   costDialog.showModal()
   requestAnimationFrame(() => costItemForm.querySelector('input')?.focus())
@@ -1743,6 +1853,7 @@ function editCostItem(id) {
       })
     }
   }
+  syncMaterialRemainingQuantity()
   saveCostItemButton.textContent = '保存修改'
   cancelCostEditButton.hidden = false
   costItemForm.querySelector('input')?.focus()
@@ -2183,7 +2294,7 @@ function exportCsv() {
       project.projectDate,
       project.projectName,
       project.contractAmount,
-      calculated.untaxedAmount.toFixed(2),
+      calculated.untaxedAmount.toFixed(INPUT_FRACTION_DIGITS),
       project.paidAmount,
       calculated.unpaidAmount,
       project.laborCost,
@@ -2191,7 +2302,7 @@ function exportCsv() {
       calculated.managementFeeAmount,
       project.otherCost,
       calculated.totalCost,
-      calculated.costRatio.toFixed(2),
+      calculated.costRatio.toFixed(INPUT_FRACTION_DIGITS),
       calculated.balance,
       project.warrantyPeriod,
       project.invoice,
@@ -2199,8 +2310,8 @@ function exportCsv() {
       project.taxRate,
       project.prepaidTaxAmount,
       calculated.profit,
-      calculated.grossMargin.toFixed(2),
-      calculated.untaxedProfitRate.toFixed(2),
+      calculated.grossMargin.toFixed(INPUT_FRACTION_DIGITS),
+      calculated.untaxedProfitRate.toFixed(INPUT_FRACTION_DIGITS),
       project.notes
     ].map(csvCell).join(',')
   })
@@ -2757,7 +2868,7 @@ function appendOtherDetailRow(list, detail = {}) {
   amount.name = 'otherDetailAmount'
   amount.type = 'number'
   amount.min = '0'
-  amount.step = '0.01'
+  amount.step = String(NUMBER_INPUT_STEP)
   amount.inputMode = 'decimal'
   amount.required = true
   amount.placeholder = '金额'

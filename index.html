@@ -219,7 +219,7 @@
           </label>
           <label class="field">
             <span>合同含税金额</span>
-            <input name="contractAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+            <input name="contractAmount" type="number" min="0" step="0.00001" inputmode="decimal" placeholder="0.00000">
           </label>
           <div class="field">
             <span>已付款金额</span>
@@ -275,11 +275,11 @@
           </label>
           <label class="field">
             <span>税点（%）</span>
-            <input name="taxRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="例如：6">
+            <input name="taxRate" type="number" min="0" step="0.00001" inputmode="decimal" placeholder="例如：6">
           </label>
           <label class="field">
             <span>预交税费</span>
-            <input name="prepaidTaxAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+            <input name="prepaidTaxAmount" type="number" min="0" step="0.00001" inputmode="decimal" placeholder="0.00000">
           </label>
           <label class="field field-full">
             <span>备注</span>
@@ -312,7 +312,7 @@
         </div>
         <button id="closeDictionaryDialogButton" class="dialog-close" type="button" aria-label="关闭">×</button>
       </div>
-      <p class="field-hint dictionary-dialog-hint">新增或删除项目表单中的下拉选项。删除选项不会清除已有项目中的历史值。</p>
+      <p class="field-hint dictionary-dialog-hint">可维护下拉选项及默认数值。产品单价修改后仅用于新增材料明细，不会影响已有数据。</p>
       <div id="dictionaryContent" class="dictionary-content"></div>
       <div class="dialog-footer">
         <button id="finishDictionaryDialogButton" class="button button-primary" type="button">完成</button>
@@ -338,7 +338,7 @@
       <form id="managementFeeForm" class="cost-item-form">
         <label class="field">
           <span>管理费金额 *</span>
-          <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+          <input name="amount" type="number" min="0" step="0.00001" inputmode="decimal" required>
           <small id="managementFeeDialogHint" class="field-hint">按公司默认规则自动计算。</small>
         </label>
         <div class="form-actions cost-item-actions">
@@ -406,7 +406,7 @@
           </label>
           <label class="field">
             <span>工期（天） *</span>
-            <input name="days" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+            <input name="days" type="number" min="0.01" step="0.00001" inputmode="decimal" required>
           </label>
         </div>
         <div class="form-actions cost-item-actions">
@@ -441,7 +441,7 @@
         <div class="settlement-fields">
           <label class="field">
             <span>结款金额 *</span>
-            <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+            <input name="amount" type="number" min="0" step="0.00001" inputmode="decimal" required>
           </label>
           <label class="field">
             <span>结款日期 *</span>
