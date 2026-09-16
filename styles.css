@@ -435,6 +435,11 @@ textarea:focus {
   border-radius: 14px;
 }
 
+.project-table-wrap {
+  max-height: 70vh;
+  overflow: auto;
+}
+
 table {
   width: 100%;
   min-width: 2100px;
@@ -641,6 +646,10 @@ tbody tr:hover {
   .table-wrap {
     overflow: visible;
     border: 0;
+  }
+
+  .project-table-wrap {
+    max-height: none;
   }
 
   table,
